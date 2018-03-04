@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+for summary in $(ls ./generated/summaries -1); do
+	filename=$(echo $summary | cut -d'.' -f1)
+	document=$(cat "../querysum-data/output/validation/documents/$filename.txt" | xargs -0 echo)
+	summary=$(cat ./generated/summaries/$summary)
+
+	echo $summary
+	echo $document
+done

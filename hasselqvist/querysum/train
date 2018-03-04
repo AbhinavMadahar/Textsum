@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+python querysum.py \
+    ../querysum-data/glove/glove.6B.100d.txt \
+    ../querysum-data/vocab \
+    --mode train \
+    --logdir log \
+    --training_dir ../querysum-data/output/validation \
+    --validation_dir ../querysum-data/output/test \
+    --batch_size 32
