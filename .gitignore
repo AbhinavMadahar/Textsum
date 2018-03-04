@@ -1,0 +1,6 @@
+official_*
+*.log
+log
+*.bin
+*tokenized
+finished_files

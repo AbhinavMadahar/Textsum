@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+mkdir Embedding
+cd Embedding
+wget http://nlp.stanford.edu/data/glove.840B.300d.zip
+unzip glove.840B.300d.zip
+echo 2196017 300 > temp_metadata
+cat temp_metadata glove.840B.300d.txt > embeddings
+rm temp_metadata
