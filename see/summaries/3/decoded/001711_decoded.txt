@@ -1,0 +1,3 @@
+the michigan data scientist says his method can be used on shorter journeys .
+his only limitation was to make one stop in all 48 contiguous us states , along with washington d.c. and two stops in california .
+each stop would be at a national natural landmark , national historic site , national park or national monument .

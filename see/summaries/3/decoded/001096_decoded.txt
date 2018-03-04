@@ -1,0 +1,3 @@
+the free words u ios app was created by new york-based sam mendelson and allan zhang .
+it changes the words used in text messages while keeping the sentence structure and meaning the same .
+the app uses an algorithm to automatically replace words in messages with synonyms .

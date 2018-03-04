@@ -1,0 +1,3 @@
+disco dog claims to be the first led dog vest that can be controlled using a smartphone .
+it has 256 leds on the outside , as well as a concealed microcontroller , a bluetooth low energy chip and a 3.7 v lithium ion battery .
+there will be controls for brightness and colour , including ` two-colour gradients that flow across the vest '

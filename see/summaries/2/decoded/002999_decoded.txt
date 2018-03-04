@@ -1,0 +1,3 @@
+built-in sensors detect human shapes and will start recording automatically if a person is spotted .
+sensors detect human shapes and will start recording automatically if a person is spotted .
+the clips are automatically transferred to a cloud-based storage system , protected by bank-level ssl security and encrypted passwords .

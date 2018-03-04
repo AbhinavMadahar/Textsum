@@ -1,0 +1,4 @@
+study also revealed that most smartphone users have no idea how closely they are being tracked .
+they found that even when an app provided a location based service , some attempted to collect more data than was needed .
+groupon , for instance , requested one participant 's coordinates 1,062 times in two weeks .
+meanwhile , the weather channel 's app requested device location an average 2,000 times , or every 10 minutes .

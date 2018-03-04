@@ -1,0 +1,2 @@
+the magnetospheric multiscale -lrb- mms -rrb- mission will use four identical spacecraft to measure a mysterious process known as magnetic reconnection .
+by orbiting earth , the spacecraft will seek to understand how energy from the sun is funnelled in to the environment of not only our own but other planets , causing space weather such as aurorae .

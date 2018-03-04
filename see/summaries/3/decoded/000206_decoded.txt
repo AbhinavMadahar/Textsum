@@ -1,0 +1,3 @@
+research carried out by a team from michigan state university used genetic algorithms to model a large population of robot brains -lrb- stock image shown -rrb- .
+these were asked to perform tasks , such as finding the exit to a maze .
+these were asked to perform tasks , such as finding the exit to a maze .

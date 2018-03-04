@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!-- This file was created with the aha Ansi HTML Adapter. https://github.com/theZiz/aha -->
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="application/xml+xhtml; charset=UTF-8" />
+<title>stdin</title>
+</head>
+<body>
+<pre>
+diff --git a/cnn-dm/make_datafiles.py b/cnn-dm/make_datafiles.py
+index bb431d5..7f47b05 100644
+--- a/cnn-dm/make_datafiles.py
++++ b/cnn-dm/make_datafiles.py
+@@ -26,8 +26,8 @@ finished_files_dir = &quot;finished_files&quot;
+ chunks_dir = os.path.join(finished_files_dir, &quot;chunked&quot;)
+ 
+ # These are the number of .story files we expect there to be in cnn_stories_dir and dm_stories_dir
+-num_expected_cnn_stories = 92579
+-num_expected_dm_stories = 219506
++num_expected_cnn_stories = 925
++num_expected_dm_stories = num_expected_cnn_stories
+ 
+ VOCAB_SIZE = 200000
+ CHUNK_SIZE = 1000 # num examples per chunk, for the chunked data
+@@ -169,12 +169,7 @@ def write_to_bin(url_file, out_file, makevocab=False):
+       elif os.path.isfile(os.path.join(dm_tokenized_stories_dir, s)):
+         story_file = os.path.join(dm_tokenized_stories_dir, s)
+       else:
+-        print &quot;Error: Couldn't find tokenized story file %s in either tokenized story directories %s and %s. Was there an error during tokenization?&quot; % (s, cnn_tokenized_stories_dir, dm_tokenized_stories_dir)
+-        # Check again if tokenized stories directories contain correct number of files
+-        print &quot;Checking that the tokenized stories directories %s and %s contain correct number of files...&quot; % (cnn_tokenized_stories_dir, dm_tokenized_stories_dir)
+-        check_num_stories(cnn_tokenized_stories_dir, num_expected_cnn_stories)
+-        check_num_stories(dm_tokenized_stories_dir, num_expected_dm_stories)
+-        raise Exception(&quot;Tokenized stories directories %s and %s contain correct number of files but story file %s found in neither.&quot; % (cnn_tokenized_stories_dir, dm_tokenized_stories_dir, s))
++        continue # this story must not have been selected
+ 
+       # Get the strings to write to .bin file
+       article, abstract = get_art_abs(story_file)
+diff --git a/pointer-generator b/pointer-generator
+--- a/pointer-generator
++++ b/pointer-generator
+@@ -1 +1 @@
+-Subproject commit 0cdcaeeaf8f42d4d64ec2ed09eb2f0158cd0db8f
++Subproject commit 0cdcaeeaf8f42d4d64ec2ed09eb2f0158cd0db8f-dirty
+</pre>
+</body>
+</html>

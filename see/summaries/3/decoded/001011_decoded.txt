@@ -1,0 +1,4 @@
+apple phones are designed to ward off hackers by locking the phone after too many incorrect attempts at entering a passcode .
+but a team of experts has found a way to bypass this security feature using a diy hacking kit made from parts bought online .
+it can override the ` erase data after 10 attempts ' setting .
+mdsec 's device cuts the power source immediately after each failed attempt but before the attempt has been synchronised with the phone 's flash memory .

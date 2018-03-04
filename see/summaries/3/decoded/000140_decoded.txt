@@ -1,0 +1,3 @@
+federal aviation administration has taken steps to protect air traffic control system from cyber-based threats .
+but ` significant security control weaknesses remain , threatening the agency 's ability to ensure the safe and uninterrupted operation , ' said government accountability office .
+one area of weakness is the ability to prevent and detect unauthorized access to the vast network of computer and communications systems .

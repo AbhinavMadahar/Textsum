@@ -1,0 +1,3 @@
+aeromobil is a ` flying car ' that can fit in a standard parking space .
+when in flight mode , it can go 430 miles , reaching 124mph - but can fit into a normal parking space .
+the latest version is the third generation of the craft .

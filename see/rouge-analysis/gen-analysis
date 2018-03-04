@@ -1,0 +1,104 @@
+#!/usr/bin/env perl
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Author: Abhinav Madahar
+#         <abhinav.madahar@rutgers.edu>
+# Synopsis: ./analysis [-s] [directory of summaries]
+#                      [-o] [file into which ROUGE scores are written]
+#                      [-u] [1]
+# Description:
+# 	This file makes an analysis.xml for ROUGE-1.5.5. If a source directory
+# 	is not set, then it defaults to "../summaries" and, if a destination
+# 	file is not set, then it defaults to STDOUT. Note that this program
+# 	expects the source directory to have subdirectories 1, 2, 3, etc. up to
+# 	9 in each of which is a decoded and a reference directory which contain
+# 	the peers and models, respectively. In both decoded, there should be
+# 	files 000000_decoded.txt, 000001_decoded.txt, etc. and similar for
+# 	references.
+# Flags:
+# 	-u marks that the -o file already exists and is unsorted, which
+# 	disables some optimisations. It is enabled by default since that's the
+# 	default behaviour of ROUGE.
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+use warnings;
+use strict;
+
+use Getopt::Long;
+
+# get command-line arguments
+my $sum_dir_loc = "./abisee";
+my $analysis_filename = "analysis.txt";
+my $analysis_file_is_unsorted = 0;
+GetOptions ("s=s", \$sum_dir_loc,
+       	    "o=s", \$analysis_filename,
+            "u", \$analysis_file_is_unsorted);
+
+# confirm that the arguments are valid
+opendir(my $sum_dir, "$sum_dir_loc") or die "Can't open dir $sum_dir_loc to read summaries";
+
+# it's easier to think of being sorted than being unsorted
+my $analysis_file_is_sorted = not $analysis_file_is_unsorted;
+
+# check which summaries have already been analysed to not waste time
+my $existing_analysis = open(my $analysis_file, '<', "$analysis_filename");
+my @already_analysed = ();
+if ($existing_analysis) {
+	while (my $line = <$analysis_file>) {
+		next unless $line =~ m/^(\d+)/;
+		my $ID = $1;
+		push @already_analysed, $ID;
+	}
+}
+
+print "<ROUGE-EVAL version=\"1.5.5\">\n";
+
+my @files = sort readdir($sum_dir);
+while (my $day = shift @files) {
+	chomp $day;
+	next if $day eq '.' or $day eq '..';
+
+	print "\t<EVAL ID=\"$day\">\n";
+	print "\t\t<PEER-ROOT>$sum_dir_loc/$day/decoded</PEER-ROOT>\n";
+	print "\t\t<MODEL-ROOT>$sum_dir_loc/$day/reference</MODEL-ROOT>\n";
+	print "\t\t<INPUT-FORMAT TYPE=\"SPL\"></INPUT-FORMAT>\n";
+
+	print "\t\t<PEERS>\n";
+	my $n = 0;
+	opendir(my $peer_dir, "$sum_dir_loc/$day/decoded") or die "Can't open dir $sum_dir_loc/$day\n";
+	while (my $line = readdir($peer_dir)) {
+		next if $line eq '.' or $line eq '..';
+		my $prefix = sprintf "%06i", $n;
+		my $should_skip = scalar(@already_analysed) > 0 and ($analysis_file_is_sorted ?
+			"$day$prefix" <= "$already_analysed[$#already_analysed]"
+		:
+			grep(/^$day$prefix$/, @already_analysed));
+		$n++;
+		print "Should skip $day$prefix: $should_skip\n";
+		next if $should_skip;
+
+		print "\t\t\t<P ID=\"$day$prefix\">$prefix\_decoded.txt</P>\n";
+
+	}
+	print "\t\t</PEERS>\n";
+
+	print "\t\t<MODELS>\n";
+	$n = 0;
+	opendir(my $model_dir, "$sum_dir_loc/$day/reference") or die "Can't open dir $sum_dir_loc/$day\n";
+	while (my $line = readdir($model_dir)) {
+		next if $line eq '.' or $line eq '..';
+		my $prefix = sprintf "%06i", $n;
+		my $should_skip = scalar(@already_analysed) > 0 and ($analysis_file_is_sorted ?
+			"$day$prefix" <= "$already_analysed[$#already_analysed]"
+		:
+			grep(/^$day$prefix$/, @already_analysed));
+		$n++;
+		next if $should_skip;
+
+		print "\t\t\t<M ID=\"$day$prefix\">$prefix\_reference.txt</M>\n";
+	}
+
+	print "\t\t</MODELS>\n";
+	print "\t</EVAL>\n";
+}
+print "</ROUGE-EVAL>\n";

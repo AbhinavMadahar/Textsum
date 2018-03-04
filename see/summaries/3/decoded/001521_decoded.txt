@@ -1,0 +1,3 @@
+ryptide is a lifeguard drone that can carry an inflatable life ring to a swimmer in under a minute .
+the system uses a specially adapted carrying device that can rush a life ring out over the water and drop it close to a swimmer in distress .
+the device is being built by students at a school in stamford , connecticut .

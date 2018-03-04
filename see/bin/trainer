@@ -1,0 +1,28 @@
+#!/bin/bash
+CUR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# shellcheck source=bin/set_env.sh
+source "$CUR_DIR/set_env.sh"
+
+mode="train"
+data_path="$CUR_DIR/../finished_files/chunked/train_*"
+
+python "$gitrepodir/run_summarization.py" \
+        --mode=$mode \
+        --data_path="$data_path" \
+        --vocab_path="$vocab_path" \
+        --log_root="$log_root" \
+        --exp_name=$exp_name \
+        --max_enc_steps=$max_enc_steps \
+        --max_dec_steps=$max_dec_steps \
+        --hidden_dim=$hidden_dim \
+        --emb_dim=$emb_dim \
+        --batch_size=$batch_size \
+        --vocab_size=$vocab_size \
+        --lr=$lr \
+        --adagrad_init_acc=$adagrad_init_acc \
+        --trunc_norm_init_std=$trunc_norm_init_std \
+        --max_grad_norm=$max_grad_norm \
+        --cov_loss_wt=$cov_loss_wt \
+        --convert_to_coverage_model=$convert_to_coverage_model \
+        --debug=$debug

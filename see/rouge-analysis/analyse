@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# these are not decided by the user
+rouge_dir="../ROUGE-1.5.5";
+rouge="$rouge_dir/ROUGE-1.5.5.pl";
+rouge_flags="-e $rouge_dir -a -f B -c 99 -n 1 -x -m $*";
+
+# ROUGE outputs the ROUGE scores to STDERR, even if everything is OK
+# so we have to pipe STDERR to STDOUT and drop the original STDOUT
+$rouge $rouge_flags <(./gen-analysis) 2>>/dev/stdout 1>/dev/null

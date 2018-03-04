@@ -1,0 +1,3 @@
+the game was developed in partnership with the institute of electrical and electronics engineers -lrb- ieee -rrb- and australian-based emotiv .
+a ` driver ' is wired up to emotiv 's electroencephalography -lrb- eeg -rrb- headset and the device is trained to read their unique brain patterns .
+the first step involves training the headset to learn wearer 's ` neutral ' state .

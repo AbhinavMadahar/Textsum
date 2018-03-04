@@ -1,0 +1,3 @@
+a free ios and android app called carat offers frustrated smartphone users personalised advice about how to boost their phone 's battery life .
+a screenshot showing distribution information is shown left , and a j-score , which indicates how a device 's battery life compares with others running carat .
+this is because the app intermittently takes measurements about the device and how it is being used .

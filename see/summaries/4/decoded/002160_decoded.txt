@@ -1,0 +1,3 @@
+proximity sensors lock the suitcase when they detect you have walked away .
+gps tells you where your bag is if it gets re-routed to another flight .
+for # 399 , users can also have a removable battery pack that can charge a device up to nine times .

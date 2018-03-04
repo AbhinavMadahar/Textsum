@@ -1,0 +1,63 @@
+#!/usr/bin/env perl
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Author: Abhinav Madahar
+#         <abhinav.madahar@rutgers.edu>
+# Description:
+# 	This program accepts ROUGE output from STDIN and assumes that it's
+# 	emitting ROUGE-L scores. Then, it sums the R, P, and F subscores and
+# 	sums those sums. It outputs to STDOUT.
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+use strict;
+use warnings;
+
+my %totals = (
+	"R" => 0,
+	"P" => 0,
+	"F" => 0
+);
+my $n_pairs = 0;
+
+while (my $line = <STDIN>) {
+	# ignore lines which declare ROUGE warnings or are just '---[...]---'
+	next if '*ROUGE Warning:' eq substr $line, 0, length('*ROUGE Warning');
+	next if '-' eq substr $line, 0, 1;
+
+	# example analysis line:
+	# 	NUMERIC_ID ROUGE-L Average_[RFP]: SCORE (95%-conf.int. RANGE)
+	# we only want to know if it's R, F, or P and the SCORE
+	# thus, we can use a simple regex
+	next unless $line =~ m/\ ([0-9.]+)/;
+	my $score = $1;
+
+	# is the score an R, P, or F?
+	# this is HIGHLY delicate to changes in summary IDs, so use with
+	# caution
+	my $rpf = substr $line, 24, 1;
+
+	$totals{$rpf} += $score;
+	$n_pairs++ if $rpf eq 'F'; # only increment after reading the last score
+}
+
+print "Analysed $n_pairs peer-model pairs\n";
+
+print "Total_R: $totals{'R'}\n";
+print "Total_P: $totals{'P'}\n";
+print "Total_F: $totals{'F'}\n";
+
+my %averages = (
+	"R" => $n_pairs > 0 ? $totals{'R'} / $n_pairs : "NaN",
+	"P" => $n_pairs > 0 ? $totals{'P'} / $n_pairs : "NaN",
+	"F" => $n_pairs > 0 ? $totals{'F'} / $n_pairs : "NaN",
+);
+
+print "Average_R: $averages{'R'}\n";
+print "Average_P: $averages{'P'}\n";
+print "Average_F: $averages{'F'}\n";
+
+my $total = $totals{'R'} + $totals{'P'} + $totals{'F'};
+print "Total: $total\n";
+
+my $average = $averages{'R'} + $averages{'P'} + $averages{'F'};
+print "Average: $average\n";

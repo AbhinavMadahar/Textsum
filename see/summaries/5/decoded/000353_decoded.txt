@@ -1,0 +1,3 @@
+google 's new facenet system is practically perfect - getting the right person 99.96 % of the time .
+google 's new facenet system is practically perfect - getting the right person 99.96 % of the time .
+google claims the system achieved nearly 100-percent accuracy rate on facial recognition dataset labeled faces in the wild .

@@ -1,0 +1,3 @@
+humanoid called icub , which has been under development for 10 years , is motivated by goals and can interact naturally with humans and mimic some of our unique characteristics .
+the humanoid called icub , which has been under development for 10 years , is motivated by goals and can express six emotions on its face , including raising its eyebrows and generating a light-up smile .
+it 's been refined to be able to crawl , walk and dance to music , manipulate objects in its hands , speak and express emotions .

@@ -1,0 +1,3 @@
+ford has introduced a built-in device called the intelligent speed limiter .
+the built-in device , called the intelligent speed limiter , automatically detects road signs and cameras and slows the car down where necessary .
+this uses cameras to read road signs and restrictions that are taken on-board by the instrument .

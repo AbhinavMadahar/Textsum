@@ -1,0 +1,3 @@
+google 's ` on-body detection ' feature uses phone 's accelerometer to know when it 's being handled or moved .
+the ` on-body detection ' feature uses the phone 's built-in accelerometer to know when it 's being handled or moved .
+it appears to be linked to the most recent version of play services .

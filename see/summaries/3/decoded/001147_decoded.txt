@@ -1,0 +1,3 @@
+the first is a ` range assurance ' app that communicates with tesla 's supercharger network , warning drivers if they are about to run out of power .
+it will also warn drivers if battery power is low before they drive beyond an area where they can charge .
+it will also warn drivers if battery power is low before they drive beyond an area where they can charge via a trip planner app .

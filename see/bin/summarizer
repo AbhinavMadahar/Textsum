@@ -1,0 +1,20 @@
+#!/bin/bash
+CUR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# shellcheck source=bin/set_env.sh
+source "$CUR_DIR/set_env.sh"
+
+mode="decode"
+data_path="$CUR_DIR/../finished_files/chunked/tonight/val_*"
+max_dec_steps=120;
+
+echo "SUMMARIZING: $data_path";
+
+python "$gitrepodir/run_summarization.py" \
+	--mode=$mode \
+	--data_path="$data_path" \
+	--vocab_path="$vocab_path" \
+	--log_root="$log_root" \
+	--exp_name=$exp_name \
+	--coverage=0 \
+	--single_pass=1

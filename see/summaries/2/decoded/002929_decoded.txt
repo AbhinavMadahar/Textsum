@@ -1,0 +1,3 @@
+the very early model of the sensor has been created by san francisco-based boydsense and is on display at this year 's mobile world congress in barcelona .
+advanced software and prediction algorithms are then used with a connected app to reveal any anomalies .
+in the mailonline demo , the boydsense sensor was able to detect an orange within 30 seconds .

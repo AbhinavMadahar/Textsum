@@ -1,0 +1,4 @@
+appkettle was created by loughborough university engineering graduates robert hill and richard hill .
+it is expected to launch on kickstarter on 31 march and connects the smart kettle to an app to schedule boils .
+it lets parents schedule when the kettle should start boiling , which also gives it time to cool down , to coincide with the expected feeding times .
+elsewhere , a connected app will reveal how much water is in the kettle so people know how many cups they can make , and this can ultimately save energy from excess boils .

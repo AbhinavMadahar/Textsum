@@ -1,0 +1,2 @@
+peri diaconis compared different shuffling techniques and it seems that the ` riffle shuffle ' , which involves cutting a deck in half and shuffling the halves into each other , is the most time effective - if done well .
+in a numberphile youtube video , the stanford university mathematician said that if a dealer uses a riffle shuffle , they only need to repeat the process seven times to get a good mix .

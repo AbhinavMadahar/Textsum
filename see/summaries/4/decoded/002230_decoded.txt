@@ -1,0 +1,3 @@
+the app replaces certain words that might be deemed r-rated with more friendly alternatives .
+alternatives are then suggested when the user taps on the deleted word .
+shown is an excerpt from gone girl , where ` sh **** ' becomes ` crappy ' the app is available now for free on ios and android .

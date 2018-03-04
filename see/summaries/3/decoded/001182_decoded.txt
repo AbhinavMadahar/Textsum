@@ -1,0 +1,3 @@
+advicydrive sensor monitors your heart rate while driving to determine how awake you are .
+if it detects a drop in heart rate , which suggests you 're dozing off , it sounds an alarm on a connected smartphone .
+when a person falls to sleep their heart rate drops by up around 10 to 30 beats per minute on average .
