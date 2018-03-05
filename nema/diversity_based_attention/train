@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+
+# this script trains the model
+
+[ -f "$1" ] || echo "ERROR: Arg '$1' is not a config file. Exiting..." && return;
+
+output_dir=$(grep outdir\ = $1 | awk -F"=" '{print $2}')
+
+echo "Outputing to$output_dir" # $output_dir already has a preceding space
+
+python run_model.py $1
