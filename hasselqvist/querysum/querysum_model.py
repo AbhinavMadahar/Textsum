@@ -75,6 +75,7 @@ class QuerySumModel(object):
         self.mode = mode
 
         self.cell = LSTMCell if cell == 'lstm' else GRUCell
+        self.output_keep_prob = 0.8  # DropoutWrapper keep probability
 
         self._build_graph(mode=mode)
 
@@ -89,7 +90,7 @@ class QuerySumModel(object):
 
             query_encoder_cell = self.cell(self.encoder_cell_state_size)
             if self.dropout_enabled and self.mode != 'decode':
-                query_encoder_cell = DropoutWrapper(cell=query_encoder_cell, output_keep_prob=0.8)
+                query_encoder_cell = DropoutWrapper(cell=query_encoder_cell, output_keep_prob=self.output_keep_prob)
 
             query_embeddings = tf.nn.embedding_lookup(self.embeddings, self.queries_placeholder)
 
@@ -103,8 +104,8 @@ class QuerySumModel(object):
             bw_cell = self.cell(self.encoder_cell_state_size)
 
             if self.dropout_enabled and self.mode != 'decode':
-                fw_cell = DropoutWrapper(cell=fw_cell, output_keep_prob=0.8)
-                bw_cell = DropoutWrapper(cell=bw_cell, output_keep_prob=0.8)
+                fw_cell = DropoutWrapper(cell=fw_cell, output_keep_prob=self.output_keep_prob)
+                bw_cell = DropoutWrapper(cell=bw_cell, output_keep_prob=self.output_keep_prob)
 
             embeddings = tf.nn.embedding_lookup(self.embeddings, self.documents_placeholder)
 
@@ -120,11 +121,16 @@ class QuerySumModel(object):
             self.final_encoder_state = self.encoder_outputs[:, -1, :]
 
     def _add_decoder(self, mode):
+        '''
+        Args:
+          self: QuerySumModel,
+          mode:
+        '''
 
         with tf.variable_scope('decoder') as scope:
             decoder_cell = self.cell(self.decoder_cell_state_size)
             if self.dropout_enabled and self.mode != 'decode':
-                decoder_cell = DropoutWrapper(cell=decoder_cell, output_keep_prob=0.8)
+                decoder_cell = DropoutWrapper(cell=decoder_cell, output_keep_prob=self.output_keep_prob)
 
             self.vocabulary_project_w_1 = tf.get_variable(
                 name='vocabulary_project_w_1',
@@ -225,7 +231,9 @@ class QuerySumModel(object):
     def _rnn_attention_decoder(self, decoder_cell, training_wheels):
         '''
         Args:
-          self: QuerySumModel
+          self: QuerySumModel,
+          decoder_cell:
+
         '''
         loop_fn = self._custom_rnn_loop_fn(decoder_cell.output_size, training_wheels=training_wheels)
         decoder_outputs, _, (context_vectors_array, attention_logits_array, pointer_probability_array) = \
