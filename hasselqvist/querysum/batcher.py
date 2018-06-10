@@ -7,7 +7,6 @@ from os import path
 reference_pattern = re.compile('(.)\.(\d+)\.(\d+)\.txt')
 query_pattern = re.compile('()(\d+)\.(\d+)\.txt')  # Starts with empty capture group for similarity and code reusability
 
-
 class Sample:
     def __init__(self, filename, document_length):
         self.filename = filename

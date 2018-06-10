@@ -1,11 +1,39 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+#!/usr/bin/env python3
+
+"""
+Run the code for (Hasselqvist et al., 2017).
+
+Command-line Args (first 2 are positional, rest are prefixed with '--'):
+  embedding_path: the path to the GLoVE word embeddings file.
+  vocabulary_dir: the path to the directory containing the vocabulary.
+  training_dir: the path to the root of the training dataset.
+  validation_dir: the path to the root of the validation dataset.
+  decode_dir: the path to the root of the dataset on which we want to predict.
+  decode_out_dir: the path to the directory where we want to save the
+                  predictions.
+  mode: train vs validate vs decode, defaults to train.
+  logdir: where to save the TensorBoard log data.
+  batch_size: size of each batch during training and validation (and possibly
+              decoding?).
+  validation_interval: number of epochs (possibly steps?) to elapse recurringly
+                       before val test
+  beam_width: width of the beam search algorithm?
+  max_output_length: max length of the output summary in words (as dictated by
+                     word embeddings).
+  target_vocabulary_size: how many distinct words the summary can contain
+  synthetic: ?
+  allow_gpu_growth: ?
+  collect_run_metadata: boolean, include or don't
+  log_weight_images: boolean, include or don't
+"""
+
 
 import argparse
 import io
 import math
 import os
-from collections import defaultdict
 from os import path
+from collections import defaultdict
 from timeit import default_timer as timer
 
 import numpy as np
@@ -17,13 +45,48 @@ from vocabulary import Vocabulary
 
 
 class RunContext:
-    pass
+    """
+    This class holds the context for a single run, primarily based on the
+    command-line arguments. The properties are set individually after the
+    object is already constructed.
+    """
+
+    def __init__(self):
+        self.options = None
+        self.model = None
+        self.session = None
+        self.saver = None
+        self.best_validation_saver = None
+        self.training_batcher = None
+        self.validation_batcher = None
+        self.decode_batcher = None
+        self.vocabulary = None
+        self.word_dict = None
+        self.word_embedding_dim = None
+        self.training_writer = None
+        self.validation_writer = None
+        self.training_summary_op = None
+        self.weight_images_summary_op = None
+        self.collect_run_metadata = None
+        self.epoch = None
 
 
 class ProcessedBatch:
-    def __init__(self, documents, document_lengths, queries, query_lengths, references=None, reference_lengths=None,
-                 pointer_reference=None, pointer_reference_lengths=None, pointer_switch=None,
-                 pointer_switch_lengths=None):
+    # TODO: figure out what this is
+    def __init__(
+        self,
+        documents,
+        document_lengths,
+        queries,
+        query_lengths,
+        references=None,
+        reference_lengths=None,
+        pointer_reference=None,
+        pointer_reference_lengths=None,
+        pointer_switch=None,
+        pointer_switch_lengths=None,
+    ):
+        # TODO: write documentation for the args
         self.documents = documents
         self.document_lengths = document_lengths
         self.queries = queries
@@ -37,8 +100,17 @@ class ProcessedBatch:
 
 
 class Hypothesis:
-    def __init__(self, probability, voc_argmax, attention_argmax, next_decoder_state, attention_softmax,
-                 pointer_enabled):
+    # TODO: figure out what this is
+    def __init__(
+        self,
+        probability,
+        voc_argmax,
+        attention_argmax,
+        next_decoder_state,
+        attention_softmax,
+        pointer_enabled,
+    ):
+        # TODO: write documentation for args
         self.probability = probability
         self.voc_argmax = voc_argmax
         self.attention_argmax = attention_argmax
@@ -49,36 +121,46 @@ class Hypothesis:
 
 def main(unused):
     parser = argparse.ArgumentParser()
-    parser.add_argument('embedding_path')
-    parser.add_argument('vocabulary_dir')
-    parser.add_argument('--training_dir')
-    parser.add_argument('--validation_dir')
-    parser.add_argument('--decode_dir')
-    parser.add_argument('--decode_out_dir')
-    parser.add_argument('--mode', choices=['train', 'validate', 'decode'], default='train')
-    parser.add_argument('--logdir')
-    parser.add_argument('--batch_size', type=int, default=30)
-    parser.add_argument('--validation_interval', type=int, default=20000)
-    parser.add_argument('--beam_width', type=int, default=5)
-    parser.add_argument('--max_output_length', type=int, default=32)
-    parser.add_argument('--target_vocabulary_size', type=int, default=20000)
-    parser.add_argument('--synthetic', action='store_true')
-    parser.add_argument('--allow_gpu_growth', action='store_true')
-    parser.add_argument('--collect_run_metadata', action='store_true')
-    parser.add_argument('--log_weight_images', action='store_true')
+    parser.add_argument("embedding_path")
+    parser.add_argument("vocabulary_dir")
+    parser.add_argument("--training_dir")
+    parser.add_argument("--validation_dir")
+    parser.add_argument("--decode_dir")
+    parser.add_argument("--decode_out_dir")
+    parser.add_argument(
+        "--mode", choices=["train", "validate", "decode"], default="train"
+    )
+    parser.add_argument("--logdir")
+    parser.add_argument("--batch_size", type=int, default=30)
+    parser.add_argument("--validation_interval", type=int, default=20000)
+    parser.add_argument("--beam_width", type=int, default=5)
+    parser.add_argument("--max_output_length", type=int, default=32)
+    parser.add_argument("--target_vocabulary_size", type=int, default=20000)
+    parser.add_argument("--synthetic", action="store_true")
+    parser.add_argument("--allow_gpu_growth", action="store_true")
+    parser.add_argument("--collect_run_metadata", action="store_true")
+    parser.add_argument("--log_weight_images", action="store_true")
     options = parser.parse_args()
 
-    if options.mode == 'decode':
+    if options.mode == "decode":
         # Batching not supported in decoding
         options.batch_size = 1
 
-    embedding_words, word_dict, word_embedding_dim = load_word_embeddings(options.embedding_path)
+    embedding_words, word_dict, word_embedding_dim = load_word_embeddings(
+        options.embedding_path
+    )
 
     vocabulary = Vocabulary()
-    summary_vocabulary_path = path.join(options.vocabulary_dir, 'summary_vocabulary.txt')
-    vocabulary.add_from_file(summary_vocabulary_path, options.target_vocabulary_size - len(vocabulary.words))
+    summary_vocabulary_path = path.join(
+        options.vocabulary_dir, "summary_vocabulary.txt"
+    )
+    vocabulary.add_from_file(
+        summary_vocabulary_path, options.target_vocabulary_size - len(vocabulary.words)
+    )
 
-    document_vocabulary_path = path.join(options.vocabulary_dir, 'document_vocabulary.txt')
+    document_vocabulary_path = path.join(
+        options.vocabulary_dir, "document_vocabulary.txt"
+    )
 
     # Add the most common words from vocabulary
     vocabulary.add_from_file(document_vocabulary_path, 150000)
@@ -89,28 +171,46 @@ def main(unused):
     run(options, word_dict, word_embedding_dim, vocabulary)
 
 
-def load_word_embeddings(path_):
-    words = []
+def load_word_embeddings(path_: os.PathLike):
+    """
+    Load the word embeddings from a given path.
+
+    Args:
+      path: os.PathLike, the path of the file containing the embeddings.
+
+    Returns:
+      A 3-tuple of: a list of the unique words,
+                    a dictionary mapping words to embeddings,
+                    and the number of
+    """
     word_dict = {}
-    with io.open(path_, encoding='utf-8') as file:
+
+    with io.open(path_, encoding="utf-8") as file:
         for line in file:
             elements = line.split()
             word = elements[0]
             embedding = np.array(elements[1:], dtype=np.float32)
-            words.append(word)
             word_dict[word] = embedding
 
+    words = list(word_dict.values)
+
     # Get dimension from arbitrary element
-    n_dim = len(word_dict[next(iter(word_dict))])
+    n_dim = len(list(word_dict.values)[0])
+
     return words, word_dict, n_dim
 
 
 def create_embedding_matrix(vocabulary, word_dict, word_embedding_dim):
-    embeddings_matrix = np.asarray([arr for arr in word_dict.values()], dtype=np.float32)
+    # TODO: figure out what this is
+    embeddings_matrix = np.asarray(
+        [arr for arr in word_dict.values()], dtype=np.float32
+    )
     mean = np.mean(embeddings_matrix, axis=0)
     sd = embeddings_matrix.std(axis=0)
 
-    embeddings = np.random.normal(mean, sd, [len(vocabulary.words), word_embedding_dim]).astype(np.float32)
+    embeddings = np.random.normal(
+        mean, sd, [len(vocabulary.words), word_embedding_dim]
+    ).astype(np.float32)
 
     for index, word in enumerate(vocabulary.words):
         embedding = word_dict.get(word)
@@ -120,26 +220,51 @@ def create_embedding_matrix(vocabulary, word_dict, word_embedding_dim):
 
 
 def run(options, word_dict, word_embedding_dim, vocabulary):
-    embeddings = create_embedding_matrix(vocabulary, word_dict, word_embedding_dim)
+    # TODO: find out what this is
+    embeddings = create_embedding_matrix(vocabulary, word_dict,
+                                         word_embedding_dim)
 
-    model = QuerySumModel(options.mode, word_dict, word_embedding_dim, vocabulary, embeddings,
-                          options.target_vocabulary_size)
+    model = QuerySumModel(
+        options.mode,
+        word_dict,
+        word_embedding_dim,
+        vocabulary,
+        embeddings,
+        options.target_vocabulary_size,
+        cell="lstm",
+    )
 
     training_batcher = None
     validation_batcher = None
     decode_batcher = None
-    if options.mode == 'decode':
-        decode_batcher = Batcher(options.decode_dir, options.batch_size, options.synthetic, reference_looping=False)
+    if options.mode == "decode":
+        decode_batcher = Batcher(
+            options.decode_dir,
+            options.batch_size,
+            options.synthetic,
+            reference_looping=False,
+        )
     else:
-        if options.mode == 'train':
-            training_batcher = Batcher(options.training_dir, options.batch_size, options.synthetic)
-        validation_batcher = Batcher(options.validation_dir, options.batch_size, options.synthetic, max_count=3000)
+        if options.mode == "train":
+            training_batcher = Batcher(
+                options.training_dir, options.batch_size, options.synthetic
+            )
+        validation_batcher = Batcher(
+            options.validation_dir,
+            options.batch_size,
+            options.synthetic,
+            max_count=3000,
+        )
 
     training_summary_op = None
-    if options.mode == 'train':
-        tf.summary.scalar('main_train_loss', model.main_train_loss, collections=['training'])
-        tf.summary.scalar('final_train_loss', model.final_train_loss, collections=['training'])
-        training_summary_op = tf.summary.merge_all('training')
+    if options.mode == "train":
+        tf.summary.scalar(
+            "main_train_loss", model.main_train_loss, collections=["training"]
+        )
+        tf.summary.scalar(
+            "final_train_loss", model.final_train_loss, collections=["training"]
+        )
+        training_summary_op = tf.summary.merge_all("training")
 
     weight_images_summary_op = None
     if options.log_weight_images:
@@ -161,34 +286,40 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
 
             tensor_as_image = tf.reshape(variable, [1, height, width, 1])
 
-            tf.summary.image(name, tensor_as_image, collections=['weight_images'])
-        weight_images_summary_op = tf.summary.merge_all('weight_images')
+            tf.summary.image(name, tensor_as_image, collections=["weight_images"])
+        weight_images_summary_op = tf.summary.merge_all("weight_images")
 
     saver = tf.train.Saver(max_to_keep=2)
     best_validation_saver = tf.train.Saver(max_to_keep=2)
 
     checkpoint_interval = 0
-    if options.mode == 'train':
+    if options.mode == "train":
         checkpoint_interval = 60
 
-    supervisor_saver = best_validation_saver if options.mode == 'decode' else saver
+    supervisor_saver = best_validation_saver if options.mode == "decode" else saver
 
-    sv = tf.train.Supervisor(logdir=options.logdir,
-                             saver=supervisor_saver,
-                             summary_op=None,
-                             summary_writer=None,
-                             save_model_secs=checkpoint_interval,
-                             global_step=model.global_step)
+    sv = tf.train.Supervisor(
+        logdir=options.logdir,
+        saver=supervisor_saver,
+        summary_op=None,
+        summary_writer=None,
+        save_model_secs=checkpoint_interval,
+        global_step=model.global_step,
+    )
 
     config = tf.ConfigProto(allow_soft_placement=True)
     config.gpu_options.allow_growth = options.allow_gpu_growth
 
     with sv.managed_session(config=config) as sess:
         if len(sv.saver.last_checkpoints) > 0:
-            print("Restored from saved model '{}'".format(sv.saver.last_checkpoints[-1]))
+            print(
+                "Restored from saved model '{}'".format(sv.saver.last_checkpoints[-1])
+            )
 
-        training_writer = tf.summary.FileWriter(path.join(options.logdir, 'training'))
-        validation_writer = tf.summary.FileWriter(path.join(options.logdir, 'validation'))
+        training_writer = tf.summary.FileWriter(path.join(options.logdir, "training"))
+        validation_writer = tf.summary.FileWriter(
+            path.join(options.logdir, "validation")
+        )
 
         initial_epoch = sess.run(model.epoch)
 
@@ -212,20 +343,24 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
         run_context.collect_run_metadata = options.collect_run_metadata
         run_context.epoch = initial_epoch
         run_context.validation_batch_interval = math.ceil(
-            run_context.options.validation_interval / run_context.options.batch_size)
+            run_context.options.validation_interval / run_context.options.batch_size
+        )
 
         # Log weight images once before starting (or resuming) training
-        if options.mode == 'train' and run_context.options.log_weight_images:
+        if options.mode == "train" and run_context.options.log_weight_images:
             [weight_images_summary, global_step_value] = sess.run(
-                [run_context.weight_images_summary_op, model.global_step])
-            run_context.training_writer.add_summary(weight_images_summary, global_step_value)
+                [run_context.weight_images_summary_op, model.global_step]
+            )
+            run_context.training_writer.add_summary(
+                weight_images_summary, global_step_value
+            )
 
         try:
-            if options.mode == 'train':
+            if options.mode == "train":
                 while not sv.should_stop():
                     run_epoch(run_context, training=True)
                     print("Finished epoch {}".format(run_context.epoch))
-            elif options.mode == 'validate':
+            elif options.mode == "validate":
                 raise Exception("Validate mode is no longer supported")
                 # run_epoch(run_context, training=False)
                 print("Finished validating.")
@@ -237,14 +372,17 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
             # Manually save after ctrl-c signal
             run_context.training_writer.flush()
             run_context.validation_writer.flush()
-            if options.mode == 'train':
+            if options.mode == "train":
                 saver.save(sess, sv.save_path, global_step=model.global_step)
 
                 print("Model saved as '{}'".format(sv.saver.last_checkpoints[-1]))
 
 
 def run_epoch(run_context, training):
-    batcher = run_context.training_batcher if training else run_context.validation_batcher
+    # TODO: find out what this is
+    batcher = (
+        run_context.training_batcher if training else run_context.validation_batcher
+    )
     model = run_context.model
     sess = run_context.session
 
@@ -257,10 +395,19 @@ def run_epoch(run_context, training):
     performance_count_input_tokens = 0
     logging_timer_start = timer()
 
-    for batch_index, raw_batch in enumerate(batcher.get_batches(shuffle_batches=training)):
+    for batch_index, raw_batch in enumerate(
+        batcher.get_batches(shuffle_batches=training)
+    ):
         documents, queries, references, entities = raw_batch[:4]
 
-        batch = process_batch(run_context.options, run_context.vocabulary, documents, queries, references, entities)
+        batch = process_batch(
+            run_context.options,
+            run_context.vocabulary,
+            documents,
+            queries,
+            references,
+            entities,
+        )
         actual_batch_size = batch.documents.shape[0]
         document_length = batch.documents.shape[1]
 
@@ -272,7 +419,7 @@ def run_epoch(run_context, training):
             model.references_placeholder: batch.references,
             model.reference_lengths_placeholder: batch.reference_lengths,
             model.pointer_reference_placeholder: batch.pointer_reference,
-            model.pointer_switch_placeholder: batch.pointer_switch
+            model.pointer_switch_placeholder: batch.pointer_switch,
         }
 
         if training:
@@ -283,30 +430,63 @@ def run_epoch(run_context, training):
                 run_metadata = tf.RunMetadata()
 
             _, loss_value, summary, global_step_value = sess.run(
-                [model.minimize_operation, model.final_train_loss, run_context.training_summary_op, model.global_step],
-                feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
+                [
+                    model.minimize_operation,
+                    model.final_train_loss,
+                    run_context.training_summary_op,
+                    model.global_step,
+                ],
+                feed_dict=feed_dict,
+                options=run_options,
+                run_metadata=run_metadata,
+            )
 
             run_context.training_writer.add_summary(summary, global_step_value)
 
             if run_context.collect_run_metadata:
                 run_context.training_writer.add_graph(sess.graph, global_step_value)
-                run_context.training_writer.add_run_metadata(run_metadata, 'train_{}'.format(global_step_value),
-                                                             global_step_value)
+                run_context.training_writer.add_run_metadata(
+                    run_metadata,
+                    "train_{}".format(global_step_value),
+                    global_step_value,
+                )
                 # Only collect metadata once
                 run_context.collect_run_metadata = False
         else:
-            if run_context.options.mode == 'train':
-                (loss_value, vocabulary_argmax_value, attention_argmax_values, pointer_enabled_values,
-                 global_step_value) = sess.run(
-                    [model.main_train_loss, model.train_vocabulary_argmax, model.train_attention_argmax,
-                     model.train_pointer_enabled, model.global_step],
-                    feed_dict=feed_dict)
+            if run_context.options.mode == "train":
+                (
+                    loss_value,
+                    vocabulary_argmax_value,
+                    attention_argmax_values,
+                    pointer_enabled_values,
+                    global_step_value,
+                ) = sess.run(
+                    [
+                        model.main_train_loss,
+                        model.train_vocabulary_argmax,
+                        model.train_attention_argmax,
+                        model.train_pointer_enabled,
+                        model.global_step,
+                    ],
+                    feed_dict=feed_dict,
+                )
             else:
-                (loss_value, vocabulary_argmax_value, attention_argmax_values, pointer_enabled_values,
-                 global_step_value) = sess.run(
-                    [model.main_loss, model.vocabulary_argmax, model.attention_argmax, model.pointer_enabled,
-                     model.global_step],
-                    feed_dict=feed_dict)
+                (
+                    loss_value,
+                    vocabulary_argmax_value,
+                    attention_argmax_values,
+                    pointer_enabled_values,
+                    global_step_value,
+                ) = sess.run(
+                    [
+                        model.main_loss,
+                        model.vocabulary_argmax,
+                        model.attention_argmax,
+                        model.pointer_enabled,
+                        model.global_step,
+                    ],
+                    feed_dict=feed_dict,
+                )
             total_validation_samples += actual_batch_size
             total_validation_loss += loss_value * actual_batch_size
 
@@ -328,33 +508,56 @@ def run_epoch(run_context, training):
                     max_value = np.max(variable_value)
 
                     if max(abs(min_value), abs(max_value)) > 100.:
-                        print("{}\n  min: {}\n  max: {}".format(variable.name, min_value, max_value))
+                        print(
+                            "{}\n  min: {}\n  max: {}".format(
+                                variable.name, min_value, max_value
+                            )
+                        )
 
             run_type = "training" if training else "validation"
             print("Run type: {}".format(run_type))
-            print("Epoch: {}, step: {}, batch: {}".format(run_context.epoch + 1,
-                                                          global_step_value + 1,
-                                                          batch_index + 1))
+            print(
+                "Epoch: {}, step: {}, batch: {}".format(
+                    run_context.epoch + 1, global_step_value + 1, batch_index + 1
+                )
+            )
 
             epoch_progress = 100 * batch_index / batcher.num_batches
             print("Epoch progress: {0:.2f}%".format(epoch_progress))
 
             if not training:
                 batch_debug_output = list(
-                    zip(vocabulary_argmax_value, attention_argmax_values, pointer_enabled_values, documents, queries,
-                        references))
+                    zip(
+                        vocabulary_argmax_value,
+                        attention_argmax_values,
+                        pointer_enabled_values,
+                        documents,
+                        queries,
+                        references,
+                    )
+                )
 
                 # Only print first item in batch
                 batch_debug_output = [batch_debug_output[0]]
 
-                for (output_summary, attention_argmax_value, pointer_enabled_value, document, query,
-                     reference) in batch_debug_output:
+                for (
+                    output_summary,
+                    attention_argmax_value,
+                    pointer_enabled_value,
+                    document,
+                    query,
+                    reference,
+                ) in batch_debug_output:
                     print("Q: {}".format(" ".join(query)))
                     print("I: {}".format(" ".join(document[:20])))
                     print("R: {}".format(" ".join(reference)))
-                    output_train_string = vocabularized_to_string(output_summary, attention_argmax_value,
-                                                                  pointer_enabled_value, document,
-                                                                  run_context.vocabulary)
+                    output_train_string = vocabularized_to_string(
+                        output_summary,
+                        attention_argmax_value,
+                        pointer_enabled_value,
+                        document,
+                        run_context.vocabulary,
+                    )
                     print("O: {}".format(output_train_string))
             print("Loss: {}".format(loss_value))
 
@@ -384,10 +587,12 @@ def run_epoch(run_context, training):
 
     if not training:
         mean_validation_loss = total_validation_loss / total_validation_samples
-        mean_validation_loss_summary = tf.Summary(value=[
-            tf.Summary.Value(tag="main_loss", simple_value=mean_validation_loss),
-        ])
-        run_context.validation_writer.add_summary(mean_validation_loss_summary, global_step_value)
+        mean_validation_loss_summary = tf.Summary(
+            value=[tf.Summary.Value(tag="main_loss", simple_value=mean_validation_loss)]
+        )
+        run_context.validation_writer.add_summary(
+            mean_validation_loss_summary, global_step_value
+        )
         run_context.training_writer.flush()
         run_context.validation_writer.flush()
 
@@ -395,13 +600,17 @@ def run_epoch(run_context, training):
         best_validation_loss_value = sess.run(model.best_validation_loss)
         if mean_validation_loss < best_validation_loss_value:
             # Update stored best validation
-            sess.run(model.best_validation_assign,
-                     feed_dict={
-                         model.new_best_validation: mean_validation_loss
-                     })
+            sess.run(
+                model.best_validation_assign,
+                feed_dict={model.new_best_validation: mean_validation_loss},
+            )
 
-            best_validation_path = path.join(run_context.options.logdir, 'best_validation.ckpt')
-            run_context.best_validation_saver.save(sess, best_validation_path, global_step=model.global_step)
+            best_validation_path = path.join(
+                run_context.options.logdir, "best_validation.ckpt"
+            )
+            run_context.best_validation_saver.save(
+                sess, best_validation_path, global_step=model.global_step
+            )
 
     if training:
         run_context.epoch = sess.run(model.increment_epoch_op)
@@ -410,33 +619,44 @@ def run_epoch(run_context, training):
         # events.out.tfevents.* files.
         if run_context.options.log_weight_images:
             weight_images_summary = sess.run(run_context.weight_images_summary_op)
-            run_context.training_writer.add_summary(weight_images_summary, global_step_value)
+            run_context.training_writer.add_summary(
+                weight_images_summary, global_step_value
+            )
 
 
 def run_decode(run_context):
+    # TODO: find out what this is
     model = run_context.model
     sess = run_context.session
     batcher = run_context.decode_batcher
 
-    initial_last_output = [run_context.vocabulary.word_to_id('<GO>')]
+    initial_last_output = [run_context.vocabulary.word_to_id("<GO>")]
 
     print("Decoding...")
 
     for batch_index, raw_batch in enumerate(batcher.get_batches(shuffle_batches=False)):
         documents, queries, document_ids, query_ids = raw_batch
 
-        batch = process_batch(run_context.options, run_context.vocabulary, documents, queries)
+        batch = process_batch(
+            run_context.options, run_context.vocabulary, documents, queries
+        )
 
         feed_dict = {
             model.documents_placeholder: batch.documents,
             model.document_lengths_placeholder: batch.document_lengths,
             model.queries_placeholder: batch.queries,
-            model.query_lengths_placeholder: batch.query_lengths
+            model.query_lengths_placeholder: batch.query_lengths,
         }
 
         encoder_outputs, query_state, next_decoder_state, partial_query_score, partial_encoder_score = sess.run(
-            [model.encoder_outputs, model.query_last, model.final_encoder_state, model.query_attention_partial_score,
-             model.encoder_state_attention_partial_scores], feed_dict=feed_dict
+            [
+                model.encoder_outputs,
+                model.query_last,
+                model.final_encoder_state,
+                model.query_attention_partial_score,
+                model.encoder_state_attention_partial_scores,
+            ],
+            feed_dict=feed_dict,
         )
 
         beam_width = run_context.options.beam_width
@@ -462,22 +682,39 @@ def run_decode(run_context):
             model.pre_computed_encoder_states_placeholder: encoder_outputs,
             model.pre_computed_query_state_placeholder: query_state,
             model.query_attention_partial_score_placeholder: partial_query_score,
-            model.encoder_state_attention_partial_scores_placeholder: partial_encoder_score
+            model.encoder_state_attention_partial_scores_placeholder: partial_encoder_score,
         }
 
-        (best_hypotheses_voc_argmax, best_hypotheses_probs, best_hypotheses_next_decoder_states,
-         best_hypotheses_attention_argmax, attention_softmax, pointer_enabled) = sess.run(
-            [model.top_k_vocabulary_argmax, model.top_k_probabilities, model.one_step_decoder_state,
-             model.attention_argmax, model.attention_softmax, model.pointer_enabled],
-            feed_dict=feed_dict)
+        (
+            best_hypotheses_voc_argmax,
+            best_hypotheses_probs,
+            best_hypotheses_next_decoder_states,
+            best_hypotheses_attention_argmax,
+            attention_softmax,
+            pointer_enabled,
+        ) = sess.run(
+            [
+                model.top_k_vocabulary_argmax,
+                model.top_k_probabilities,
+                model.one_step_decoder_state,
+                model.attention_argmax,
+                model.attention_softmax,
+                model.pointer_enabled,
+            ],
+            feed_dict=feed_dict,
+        )
 
         for i in range(beam_width):
-            best_hypotheses.append(Hypothesis(best_hypotheses_probs[0, i],
-                                              [best_hypotheses_voc_argmax[0, i]],
-                                              [best_hypotheses_attention_argmax[0]],
-                                              best_hypotheses_next_decoder_states[0],
-                                              [attention_softmax[0]],
-                                              [pointer_enabled[0]]))
+            best_hypotheses.append(
+                Hypothesis(
+                    best_hypotheses_probs[0, i],
+                    [best_hypotheses_voc_argmax[0, i]],
+                    [best_hypotheses_attention_argmax[0]],
+                    best_hypotheses_next_decoder_states[0],
+                    [attention_softmax[0]],
+                    [pointer_enabled[0]],
+                )
+            )
 
         time_step = 1
         while num_finished_hypotheses < beam_width:
@@ -488,7 +725,9 @@ def run_decode(run_context):
                 attended_token = batch.documents[0, hypothesis.attention_argmax[-1]]
                 vocabulary_token = hypothesis.voc_argmax[-1]
                 last_pointer_enabled = hypothesis.pointer_enabled[-1]
-                last_output_index = attended_token if last_pointer_enabled == 1 else vocabulary_token
+                last_output_index = (
+                    attended_token if last_pointer_enabled == 1 else vocabulary_token
+                )
 
                 feed_dict = {
                     model.documents_placeholder: batch.documents,
@@ -497,28 +736,56 @@ def run_decode(run_context):
                     model.query_lengths_placeholder: batch.query_lengths,
                     model.beam_width_placeholder: beam_width,
                     model.decode_last_output_placeholder: [last_output_index],
-                    model.initial_decoder_state_placeholder: [hypothesis.next_decoder_state],
+                    model.initial_decoder_state_placeholder: [
+                        hypothesis.next_decoder_state
+                    ],
                     model.pre_computed_encoder_states_placeholder: encoder_outputs,
                     model.pre_computed_query_state_placeholder: query_state,
                     model.query_attention_partial_score_placeholder: partial_query_score,
-                    model.encoder_state_attention_partial_scores_placeholder: partial_encoder_score
+                    model.encoder_state_attention_partial_scores_placeholder: partial_encoder_score,
                 }
 
-                (top_k_voc_argmax, top_k_probs, next_decoder_state, attention_argmax, attention_softmax,
-                 pointer_enabled) = sess.run(
-                    [model.top_k_vocabulary_argmax, model.top_k_probabilities, model.one_step_decoder_state,
-                     model.attention_argmax, model.attention_softmax, model.pointer_enabled],
-                    feed_dict=feed_dict)
+                (
+                    top_k_voc_argmax,
+                    top_k_probs,
+                    next_decoder_state,
+                    attention_argmax,
+                    attention_softmax,
+                    pointer_enabled,
+                ) = sess.run(
+                    [
+                        model.top_k_vocabulary_argmax,
+                        model.top_k_probabilities,
+                        model.one_step_decoder_state,
+                        model.attention_argmax,
+                        model.attention_softmax,
+                        model.pointer_enabled,
+                    ],
+                    feed_dict=feed_dict,
+                )
 
                 for j in range(beam_width):
                     new_prob = hypothesis.probability * top_k_probs[0, j]
                     new_voc_argmax = hypothesis.voc_argmax + [top_k_voc_argmax[0, j]]
-                    new_attention_argmax = hypothesis.attention_argmax + [attention_argmax[0]]
-                    new_attention_softmax = hypothesis.attention_softmax + [attention_softmax[0]]
-                    new_pointer_enabled = hypothesis.pointer_enabled + [pointer_enabled[0]]
-                    hypotheses.append(Hypothesis(
-                        new_prob, new_voc_argmax, new_attention_argmax, next_decoder_state[0], new_attention_softmax,
-                        new_pointer_enabled))
+                    new_attention_argmax = hypothesis.attention_argmax + [
+                        attention_argmax[0]
+                    ]
+                    new_attention_softmax = hypothesis.attention_softmax + [
+                        attention_softmax[0]
+                    ]
+                    new_pointer_enabled = hypothesis.pointer_enabled + [
+                        pointer_enabled[0]
+                    ]
+                    hypotheses.append(
+                        Hypothesis(
+                            new_prob,
+                            new_voc_argmax,
+                            new_attention_argmax,
+                            next_decoder_state[0],
+                            new_attention_softmax,
+                            new_pointer_enabled,
+                        )
+                    )
 
             hypotheses.sort(key=lambda hyp: hyp.probability, reverse=True)
 
@@ -526,18 +793,29 @@ def run_decode(run_context):
             best_hypotheses = []
 
             num_considered_hypotheses = 0
-            while num_finished_hypotheses < beam_width and added_to_next_beam < beam_width:
+            while (
+                num_finished_hypotheses < beam_width and added_to_next_beam < beam_width
+            ):
 
                 hypothesis = hypotheses[num_considered_hypotheses]
 
-                if hypothesis.voc_argmax[-1] == run_context.vocabulary.word_to_id(
-                        '<EOS>') or time_step + 1 >= max_output_length:
+                if (
+                    hypothesis.voc_argmax[-1]
+                    == run_context.vocabulary.word_to_id("<EOS>")
+                    or time_step + 1 >= max_output_length
+                ):
                     num_finished_hypotheses += 1
                     finished_hypotheses_probs.append(hypothesis.probability)
                     finished_hypotheses_voc_argmax.append(hypothesis.voc_argmax)
-                    finished_hypotheses_attention_argmax.append(hypothesis.attention_argmax)
-                    finished_hypotheses_attention_softmax.append(hypothesis.attention_softmax)
-                    finished_hypotheses_pointer_enabled.append(hypothesis.pointer_enabled)
+                    finished_hypotheses_attention_argmax.append(
+                        hypothesis.attention_argmax
+                    )
+                    finished_hypotheses_attention_softmax.append(
+                        hypothesis.attention_softmax
+                    )
+                    finished_hypotheses_pointer_enabled.append(
+                        hypothesis.pointer_enabled
+                    )
                 else:
                     best_hypotheses.append(hypothesis)
                     added_to_next_beam += 1
@@ -551,57 +829,100 @@ def run_decode(run_context):
             if finished_hypotheses_probs[i] > final_hypothesis_prob:
                 final_hypothesis_prob = finished_hypotheses_probs[i]
                 final_hypothesis_voc_argmax = finished_hypotheses_voc_argmax[i]
-                final_hypothesis_attention_argmax = finished_hypotheses_attention_argmax[i]
-                final_hypothesis_attention_softmax = finished_hypotheses_attention_softmax[i]
-                final_hypothesis_pointer_enabled = finished_hypotheses_pointer_enabled[i]
+                final_hypothesis_attention_argmax = finished_hypotheses_attention_argmax[
+                    i
+                ]
+                final_hypothesis_attention_softmax = finished_hypotheses_attention_softmax[
+                    i
+                ]
+                final_hypothesis_pointer_enabled = finished_hypotheses_pointer_enabled[
+                    i
+                ]
 
-        write_output_summaries(run_context,
-                               [np.array(final_hypothesis_voc_argmax)],
-                               [np.array(final_hypothesis_attention_argmax)],
-                               [np.array(final_hypothesis_pointer_enabled)],
-                               documents[0], document_ids, query_ids)
+        write_output_summaries(
+            run_context,
+            [np.array(final_hypothesis_voc_argmax)],
+            [np.array(final_hypothesis_attention_argmax)],
+            [np.array(final_hypothesis_pointer_enabled)],
+            documents[0],
+            document_ids,
+            query_ids,
+        )
 
-        document_query_id = '{}.{}.txt'.format(document_ids[0], query_ids[0])
+        document_query_id = "{}.{}.txt".format(document_ids[0], query_ids[0])
 
-        softmax_path = path.join(run_context.options.decode_out_dir, 'attention_softmax')
+        softmax_path = path.join(
+            run_context.options.decode_out_dir, "attention_softmax"
+        )
         if not path.isdir(softmax_path):
             os.makedirs(softmax_path)
-        np.savetxt(path.join(softmax_path, document_query_id), final_hypothesis_attention_softmax)
+        np.savetxt(
+            path.join(softmax_path, document_query_id),
+            final_hypothesis_attention_softmax,
+        )
 
-        output_prob_path = path.join(run_context.options.decode_out_dir, 'output_probabilities')
+        output_prob_path = path.join(
+            run_context.options.decode_out_dir, "output_probabilities"
+        )
         if not path.isdir(output_prob_path):
             os.makedirs(output_prob_path)
-        np.savetxt(path.join(output_prob_path, document_query_id), [final_hypothesis_prob])
+        np.savetxt(
+            path.join(output_prob_path, document_query_id), [final_hypothesis_prob]
+        )
 
 
-def process_batch(options, vocabulary, document_batch, query_batch, reference_batch=None, entities_batch=None):
-    # Limit document size
+def process_batch(
+    options,
+    vocabulary,
+    document_batch,
+    query_batch,
+    reference_batch=None,
+    entities_batch=None,
+):
+    """
+    Args:
+      options:
+      vocabulary: an object implementing word_to_id: string -> (nonneg int).
+      document_batch: 2D indexable of word strings, the batch of documents.
+      query_batch: 2D indexable of
+    """
+    # TODO: find out what this is
+
+    # Limit document size by clipping
     max_document_tokens = 800
     document_batch = [document[:max_document_tokens] for document in document_batch]
 
-    # Add special <EOS> symbol
+    # Add special <EOS> symbol to the end of every sentence in the batch
     for batch_texts in [query_batch, reference_batch]:
         if batch_texts is not None:
             for text in batch_texts:
-                text.append('<EOS>')
+                text.append("<EOS>")
 
     documents = vocabularize_batch(document_batch, vocabulary)
     queries = vocabularize_batch(query_batch, vocabulary)
     if reference_batch is not None:
-        references, pointer_reference, pointer_switch = process_references(document_batch, reference_batch,
-                                                                           entities_batch, vocabulary,
-                                                                           options.target_vocabulary_size)
+        references, pointer_reference, pointer_switch = process_references(
+            document_batch,
+            reference_batch,
+            entities_batch,
+            vocabulary,
+            options.target_vocabulary_size,
+        )
     actual_batch_size = len(document_batch)
     processed_batch_elements = []
-    if reference_batch is None:
-        loop_elements = (documents, queries)
-    else:
-        loop_elements = (documents, queries, references, pointer_reference, pointer_switch)
-    for texts in loop_elements:
-        data_shape = list(texts[0].shape[1:])
 
-        longest_text_length = max(map(len, texts))
-        padded = np.zeros([actual_batch_size, longest_text_length] + data_shape, dtype=np.int32)
+    loop_elements = (
+        (documents, queries, references, pointer_reference, pointer_switch)
+        if reference_batch
+        else (documents, queries)
+    )
+
+    data_shape = list(loop_elements[0].shape[1:])
+    for texts in loop_elements:
+        longest_text_length = max(len(text) for text in texts)
+        padded = np.zeros(
+            [actual_batch_size, longest_text_length] + data_shape, dtype=np.int32
+        )
         lengths = np.zeros([actual_batch_size], dtype=np.int32)
 
         for index, text in enumerate(texts):
@@ -615,18 +936,25 @@ def process_batch(options, vocabulary, document_batch, query_batch, reference_ba
     return batch
 
 
-def process_references(document_batch, reference_batch, entities_batch, vocabulary, target_vocabulary_size):
+def process_references(
+    document_batch, reference_batch, entities_batch, vocabulary, target_vocabulary_size
+):
+    # TODO: find out what this is
     batch_size = len(document_batch)
     batched_reference = [None] * batch_size
     batched_pointer_reference = [None] * batch_size
     batched_pointer_switch = [None] * batch_size
 
-    pad_id = vocabulary.word_to_id('<PAD>')
-    unk_id = vocabulary.word_to_id('<UNK>')
+    pad_id = vocabulary.word_to_id("<PAD>")
+    unk_id = vocabulary.word_to_id("<UNK>")
 
-    for batch_index, (document, reference, entities) in enumerate(zip(document_batch, reference_batch, entities_batch)):
+    for batch_index, (document, reference, entities) in enumerate(
+        zip(document_batch, reference_batch, entities_batch)
+    ):
         reference_length = len(reference)
-        vocabularized_reference = vocabularize(reference, vocabulary, target_vocabulary_size - 1)
+        vocabularized_reference = vocabularize(
+            reference, vocabulary, target_vocabulary_size - 1
+        )
         pointer_reference = np.zeros([reference_length], dtype=np.int32)
         pointer_switch = np.zeros([reference_length], dtype=np.int32)
 
@@ -645,7 +973,12 @@ def process_references(document_batch, reference_batch, entities_batch, vocabula
                 ref_end_index = ref_start_index + len(entity_tokens)
 
                 # Make sure that entities in the reference don't overlap
-                if any([index in pointed_reference_entity_indices for index in range(ref_start_index, ref_end_index)]):
+                if any(
+                    [
+                        index in pointed_reference_entity_indices
+                        for index in range(ref_start_index, ref_end_index)
+                    ]
+                ):
                     continue
 
                 if entity_tokens == reference[ref_start_index:ref_end_index]:
@@ -655,9 +988,13 @@ def process_references(document_batch, reference_batch, entities_batch, vocabula
                         if entity_tokens == document[doc_start_index:doc_end_index]:
                             for entity_index in range(len(entity_tokens)):
                                 reference_entity_index = ref_start_index + entity_index
-                                pointed_reference_entity_indices.add(reference_entity_index)
+                                pointed_reference_entity_indices.add(
+                                    reference_entity_index
+                                )
                                 pointer_switch[reference_entity_index] = 1
-                                pointer_reference[reference_entity_index] = doc_start_index + entity_index
+                                pointer_reference[reference_entity_index] = (
+                                    doc_start_index + entity_index
+                                )
                                 vocabularized_reference[reference_entity_index] = unk_id
                             break
 
@@ -678,36 +1015,120 @@ def process_references(document_batch, reference_batch, entities_batch, vocabula
     return batched_reference, batched_pointer_reference, batched_pointer_switch
 
 
-def write_output_summaries(run_context, vocabularized_summaries, batched_attention_indices, batched_pointer_enabled,
-                           document, document_ids, query_ids):
-    summary_dir = path.join(run_context.options.decode_out_dir, 'summaries')
+def write_output_summaries(
+    run_context: RunContext,
+    vocabularized_summaries,
+    batched_attention_indices,
+    batched_pointer_enabled,
+    document,
+    document_ids,
+    query_ids,
+):
+    """
+    Args:
+      run_context: an instance of RunContext.
+      vocabularized_summaries: an iterable of
+    """
+
+    summary_dir = path.join(run_context.options.decode_out_dir, "summaries")
 
     if not path.isdir(summary_dir):
         os.makedirs(summary_dir)
-    output_summaries = list(zip(vocabularized_summaries, batched_attention_indices, batched_pointer_enabled,
-                                document_ids, query_ids))
-    for vocabularized_summary, attention_indices, pointer_enabled, document_id, query_id in output_summaries:
-        out_name = '{}.{}.txt'.format(document_id, query_id)
+
+    output_summaries = list(
+        zip(
+            vocabularized_summaries,
+            batched_attention_indices,
+            batched_pointer_enabled,
+            document_ids,
+            query_ids,
+        )
+    )
+
+    for (
+        vocabularized_summary,
+        attention_indices,
+        pointer_enabled,
+        document_id,
+        query_id,
+    ) in output_summaries:
+        out_name = "{}.{}.txt".format(document_id, query_id)
         out_path = path.join(summary_dir, out_name)
-        summary = vocabularized_to_string(vocabularized_summary, attention_indices, pointer_enabled, document,
-                                          run_context.vocabulary)
-        with io.open(out_path, 'w', encoding='utf-8') as file:
+        summary = vocabularized_to_string(
+            vocabularized_summary,
+            attention_indices,
+            pointer_enabled,
+            document,
+            run_context.vocabulary,
+        )
+        with io.open(out_path, "w", encoding="utf-8") as file:
             file.write(summary)
 
 
 def vocabularize(text, vocabulary, max_id=np.inf):
-    unk_id = vocabulary.word_to_id('<UNK>')
+    """
+    Convert a 1D iterable of strings to a 1D array of word IDs.
+
+    Args:
+      text: iterable of strings, the iterable of strings to vocabularize.
+      vocabulary: an object with a word_to_id: string -> int function.
+      max_id: int, the maximum number of unique words to consider. Defaults to
+              np.inf.
+
+    Returns:
+      A 1D numpy array which contains the corresponding IDs for each word in
+      text.
+    """
+    unk_id = vocabulary.word_to_id("<UNK>")
     vocabularized = [vocabulary.word_to_id(word) for word in text]
     vocabularized = [id_ if id_ <= max_id else unk_id for id_ in vocabularized]
     return np.array(vocabularized, dtype=np.int32)
 
 
 def vocabularize_batch(texts, vocabulary, max_id=np.inf):
+    """
+    Convert a 2D iterable of strings (i.e. a 1D iterable of sentences) to a 2D
+    Python list of the same shape containing corresponding word IDs.
+
+    Args:
+      texts: 2D iterable of strings, the iterable of sentences to vocabularize.
+      vocabulary: an object with a word_to_id: string -> int function.
+      max_id: int, the maximum number of unique words to consider. Defaults to
+              np.inf.
+
+    Returns:
+      A 2D numpy array which contains the corresponding IDs for each word in
+      each sentence in texts.
+    """
     return [vocabularize(text, vocabulary, max_id) for text in texts]
 
 
-def vocabularized_to_string(vocabularized, attention_indices, pointer_enabled, document, vocabulary):
-    eos_id = vocabulary.word_to_id('<EOS>')
+def vocabularized_to_string(
+    vocabularized: np.ndarray, attention_indices, pointer_enabled, document,
+    vocabulary
+):
+    """
+    Args:
+      vocabularized: numpy array, the word IDs which are to be converted back
+                     to strings. These are exclusively from the generator, not
+                     the pointer.
+      attention_indices: an indexable whose values are the most focused-on
+                         words' index in the original text for each word in
+                         vocabularized.
+      pointer_enabled: an indexable of booleans representing if the
+                       corresponding word in the summary should be the
+                       pointer's word or the generator's word.
+      document: an indexable representing the document. Each value when indexed
+                returns a string representing the word.
+      vocabulary: an object implementing a word_to_id: string -> (nonneg int)
+                 function with '<EOS>' in its domain.
+
+    Returns:
+      A string containing the words, in string form, of all the IDs in
+      vocabularized.
+    """
+
+    eos_id = vocabulary.word_to_id("<EOS>")  # end-of-summary token
     python_list = vocabularized.tolist()
     try:
         end_index = python_list.index(eos_id)
@@ -716,7 +1137,9 @@ def vocabularized_to_string(vocabularized, attention_indices, pointer_enabled, d
 
     out_tokens = []
 
+    # we don't care about decoding anything after the end-of-summary token
     for index, token in enumerate(python_list[:end_index]):
+        # this is important in implementing the pointer-generator mechanism
         if pointer_enabled[index] == 1:
             out_token = document[attention_indices[index]]
             print("Pointer replace: {}".format(out_token))
@@ -727,5 +1150,5 @@ def vocabularized_to_string(vocabularized, attention_indices, pointer_enabled, d
     return " ".join(out_tokens)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     tf.app.run()

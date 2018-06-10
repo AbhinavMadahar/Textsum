@@ -2,14 +2,14 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.rnn import DropoutWrapper, GRUCell
+from tensorflow.contrib.rnn import DropoutWrapper, GRUCell, LSTMCell
 from tensorflow.python.ops import rnn
 from tensorflow.python.training.adam import AdamOptimizer
 
 
 class QuerySumModel(object):
     def __init__(self, mode, word_dict, word_embedding_dim, vocabulary, initial_vocabulary_embeddings,
-                 target_vocabulary_size):
+                 target_vocabulary_size, cell='gru'):
         self.word_dict = word_dict
         self.word_embedding_dim = word_embedding_dim
         self.summary_vocabulary = vocabulary
@@ -73,6 +73,9 @@ class QuerySumModel(object):
             shape=[None, None, self.attention_hidden_output_size])
 
         self.mode = mode
+
+        self.cell = LSTMCell if cell == 'lstm' else GRUCell
+
         self._build_graph(mode=mode)
 
     def _build_graph(self, mode):
@@ -83,7 +86,8 @@ class QuerySumModel(object):
 
     def _add_encoders(self):
         with tf.variable_scope('query_encoder'):
-            query_encoder_cell = GRUCell(self.encoder_cell_state_size)
+
+            query_encoder_cell = self.cell(self.encoder_cell_state_size)
             if self.dropout_enabled and self.mode != 'decode':
                 query_encoder_cell = DropoutWrapper(cell=query_encoder_cell, output_keep_prob=0.8)
 
@@ -95,8 +99,8 @@ class QuerySumModel(object):
             self.query_last = query_encoder_outputs[:, -1, :]
 
         with tf.variable_scope('encoder'):
-            fw_cell = GRUCell(self.encoder_cell_state_size)
-            bw_cell = GRUCell(self.encoder_cell_state_size)
+            fw_cell = self.cell(self.encoder_cell_state_size)
+            bw_cell = self.cell(self.encoder_cell_state_size)
 
             if self.dropout_enabled and self.mode != 'decode':
                 fw_cell = DropoutWrapper(cell=fw_cell, output_keep_prob=0.8)
@@ -118,7 +122,7 @@ class QuerySumModel(object):
     def _add_decoder(self, mode):
 
         with tf.variable_scope('decoder') as scope:
-            decoder_cell = GRUCell(self.decoder_cell_state_size)
+            decoder_cell = self.cell(self.decoder_cell_state_size)
             if self.dropout_enabled and self.mode != 'decode':
                 decoder_cell = DropoutWrapper(cell=decoder_cell, output_keep_prob=0.8)
 
@@ -437,6 +441,9 @@ class QuerySumModel(object):
             }
             l2_regularized = [variable for variable in tf.trainable_variables() if
                               variable.name in l2_regularized_names]
+
+            import pdb; pdb.set_trace()
+
             l2_loss = 0.001 * tf.add_n([tf.nn.l2_loss(variable) for variable in l2_regularized])
 
             # self.train_loss += l2_loss

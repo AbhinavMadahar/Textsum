@@ -47,3 +47,4 @@ python querysum.py \
     --decode_dir <path to dataset directory, containing documents and queries, to generate summaries for> \
     --decode_out_dir <path to directory where generated summaries are saved>
 ```
+
