@@ -14,10 +14,29 @@ class Vocabulary:
         self.add_words(['<PAD>', '<UNK>', '<GO>', '<EOS>'])
 
     def add_words(self, words):
+        '''
+        Add MANY words to the vocabulary.
+
+        Args:
+          self: an instance of Vocabulary, the container for the vocab.
+          words: an iterable of string, the word to be added.
+        '''
+
         for word in words:
             self.add_word(word)
 
     def add_word(self, word):
+        '''
+        Add A SINGLE word to the vocabulary.
+
+        Args:
+          self: an instance of Vocabulary, the container for the vocab.
+          word: string, the word to be added.
+        '''
+
+        if type(word) == np.ndarray:
+            return
+
         if word not in self.word_to_id_dict:
             self.words.append(word)
             new_id = len(self.words) - 1

@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+. env/bin/activate;
+
 cat $0;
 
 python querysum.py \

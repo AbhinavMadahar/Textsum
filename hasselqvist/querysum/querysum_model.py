@@ -223,6 +223,10 @@ class QuerySumModel(object):
                 decoder_outputs, context_vectors, attention_logits, pointer_probabilities)
 
     def _rnn_attention_decoder(self, decoder_cell, training_wheels):
+        '''
+        Args:
+          self: QuerySumModel
+        '''
         loop_fn = self._custom_rnn_loop_fn(decoder_cell.output_size, training_wheels=training_wheels)
         decoder_outputs, _, (context_vectors_array, attention_logits_array, pointer_probability_array) = \
             tf.nn.raw_rnn(decoder_cell,

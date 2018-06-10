@@ -147,25 +147,25 @@ def main(unused):
         options.batch_size = 1
 
     embedding_words, word_dict, word_embedding_dim = load_word_embeddings(
-        options.embedding_path
-    )
+        options.embedding_path)
 
     vocabulary = Vocabulary()
+
     summary_vocabulary_path = path.join(
-        options.vocabulary_dir, "summary_vocabulary.txt"
-    )
+        options.vocabulary_dir, "summary_vocabulary.txt")
+
     vocabulary.add_from_file(
-        summary_vocabulary_path, options.target_vocabulary_size - len(vocabulary.words)
-    )
+        summary_vocabulary_path, options.target_vocabulary_size -
+        len(vocabulary.words))
 
     document_vocabulary_path = path.join(
-        options.vocabulary_dir, "document_vocabulary.txt"
-    )
+        options.vocabulary_dir, "document_vocabulary.txt")
 
     # Add the most common words from vocabulary
     vocabulary.add_from_file(document_vocabulary_path, 150000)
 
     # Add additional common words from loaded embeddings
+    # note that embedding_words contains 2D numpy arrays
     vocabulary.add_words(embedding_words[:100000])
 
     run(options, word_dict, word_embedding_dim, vocabulary)
@@ -181,7 +181,7 @@ def load_word_embeddings(path_: os.PathLike):
     Returns:
       A 3-tuple of: a list of the unique words,
                     a dictionary mapping words to embeddings,
-                    and the number of
+                    and the number of dimensions in each word.
     """
     word_dict = {}
 
@@ -192,18 +192,29 @@ def load_word_embeddings(path_: os.PathLike):
             embedding = np.array(elements[1:], dtype=np.float32)
             word_dict[word] = embedding
 
-    words = list(word_dict.values)
+    words = list(word_dict.values())
 
     # Get dimension from arbitrary element
-    n_dim = len(list(word_dict.values)[0])
+    n_dim = len(list(word_dict.values())[0])
 
     return words, word_dict, n_dim
 
 
 def create_embedding_matrix(vocabulary, word_dict, word_embedding_dim):
-    # TODO: figure out what this is
+    '''
+    Create embedding matrices for several words.
+
+    Args:
+      vocabulary: Vocabulary, the container for the loaded vocabulary.
+      word_dict: dictionary mapping words to embeddings.
+      word_embedding_dim: int, the number of dimensions in each word.
+
+    Returns:
+      The embedding matrices.
+    '''
+
     embeddings_matrix = np.asarray(
-        [arr for arr in word_dict.values()], dtype=np.float32
+        list(word_dict.values()), dtype=np.float32
     )
     mean = np.mean(embeddings_matrix, axis=0)
     sd = embeddings_matrix.std(axis=0)
@@ -216,11 +227,21 @@ def create_embedding_matrix(vocabulary, word_dict, word_embedding_dim):
         embedding = word_dict.get(word)
         if embedding is not None:
             embeddings[index] = embedding
+
     return embeddings
 
 
 def run(options, word_dict, word_embedding_dim, vocabulary):
-    # TODO: find out what this is
+    '''
+    Run the experiment, whether it's training, testing, or decoding.
+
+    Args:
+      options: returned by parser.parse_args, the command-line
+               arguments.
+      word_dict: dictionary mapping words to embeddings.
+      word_embedding_dim: int, the number of dimensions in each word.
+      vocabulary: Vocabulary, the loaded vocabulary.
+    '''
     embeddings = create_embedding_matrix(vocabulary, word_dict,
                                          word_embedding_dim)
 
@@ -242,28 +263,24 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
             options.decode_dir,
             options.batch_size,
             options.synthetic,
-            reference_looping=False,
-        )
+            reference_looping=False,)
     else:
         if options.mode == "train":
             training_batcher = Batcher(
-                options.training_dir, options.batch_size, options.synthetic
-            )
+                options.training_dir, options.batch_size, options.synthetic)
         validation_batcher = Batcher(
             options.validation_dir,
             options.batch_size,
             options.synthetic,
-            max_count=3000,
-        )
+            max_count=3000,)
 
     training_summary_op = None
     if options.mode == "train":
         tf.summary.scalar(
-            "main_train_loss", model.main_train_loss, collections=["training"]
-        )
+            "main_train_loss", model.main_train_loss, collections=["training"])
         tf.summary.scalar(
-            "final_train_loss", model.final_train_loss, collections=["training"]
-        )
+            "final_train_loss", model.final_train_loss,
+            collections=["training"])
         training_summary_op = tf.summary.merge_all("training")
 
     weight_images_summary_op = None
@@ -286,7 +303,10 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
 
             tensor_as_image = tf.reshape(variable, [1, height, width, 1])
 
-            tf.summary.image(name, tensor_as_image, collections=["weight_images"])
+            tf.summary.image(
+                name,
+                tensor_as_image,
+                collections=["weight_images"])
         weight_images_summary_op = tf.summary.merge_all("weight_images")
 
     saver = tf.train.Saver(max_to_keep=2)
@@ -312,11 +332,11 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
 
     with sv.managed_session(config=config) as sess:
         if len(sv.saver.last_checkpoints) > 0:
-            print(
-                "Restored from saved model '{}'".format(sv.saver.last_checkpoints[-1])
-            )
+            print("Restored from saved model '{}'".format(
+                      sv.saver.last_checkpoints[-1]))
 
-        training_writer = tf.summary.FileWriter(path.join(options.logdir, "training"))
+        training_writer = tf.summary.FileWriter(
+            path.join(options.logdir, "training"))
         validation_writer = tf.summary.FileWriter(
             path.join(options.logdir, "validation")
         )
@@ -343,8 +363,8 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
         run_context.collect_run_metadata = options.collect_run_metadata
         run_context.epoch = initial_epoch
         run_context.validation_batch_interval = math.ceil(
-            run_context.options.validation_interval / run_context.options.batch_size
-        )
+            run_context.options.validation_interval /
+            run_context.options.batch_size)
 
         # Log weight images once before starting (or resuming) training
         if options.mode == "train" and run_context.options.log_weight_images:
@@ -375,14 +395,15 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
             if options.mode == "train":
                 saver.save(sess, sv.save_path, global_step=model.global_step)
 
-                print("Model saved as '{}'".format(sv.saver.last_checkpoints[-1]))
+                print("Model saved as '{}'".format(
+                    sv.saver.last_checkpoints[-1]))
 
 
 def run_epoch(run_context, training):
     # TODO: find out what this is
     batcher = (
-        run_context.training_batcher if training else run_context.validation_batcher
-    )
+        run_context.training_batcher
+        if training else run_context.validation_batcher)
     model = run_context.model
     sess = run_context.session
 
@@ -395,9 +416,7 @@ def run_epoch(run_context, training):
     performance_count_input_tokens = 0
     logging_timer_start = timer()
 
-    for batch_index, raw_batch in enumerate(
-        batcher.get_batches(shuffle_batches=training)
-    ):
+    for batch_index, raw_batch in enumerate(batcher.get_batches(shuffle_batches=training)):
         documents, queries, references, entities = raw_batch[:4]
 
         batch = process_batch(
@@ -426,7 +445,8 @@ def run_epoch(run_context, training):
             run_options = None
             run_metadata = None
             if run_context.collect_run_metadata:
-                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                run_options = tf.RunOptions(
+                    trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
 
             _, loss_value, summary, global_step_value = sess.run(
@@ -444,7 +464,8 @@ def run_epoch(run_context, training):
             run_context.training_writer.add_summary(summary, global_step_value)
 
             if run_context.collect_run_metadata:
-                run_context.training_writer.add_graph(sess.graph, global_step_value)
+                run_context.training_writer.add_graph(
+                    sess.graph, global_step_value)
                 run_context.training_writer.add_run_metadata(
                     run_metadata,
                     "train_{}".format(global_step_value),
@@ -518,9 +539,9 @@ def run_epoch(run_context, training):
             print("Run type: {}".format(run_type))
             print(
                 "Epoch: {}, step: {}, batch: {}".format(
-                    run_context.epoch + 1, global_step_value + 1, batch_index + 1
-                )
-            )
+                    run_context.epoch + 1,
+                    global_step_value + 1,
+                    batch_index + 1))
 
             epoch_progress = 100 * batch_index / batcher.num_batches
             print("Epoch progress: {0:.2f}%".format(epoch_progress))
@@ -567,7 +588,8 @@ def run_epoch(run_context, training):
 
             print("Time per batch: {0:.3f} ms".format(ms_per_batch))
             print("Time per sample: {0:.3f} ms".format(ms_per_sample))
-            print("Time per input token: {0:.3f} ms".format(ms_per_input_token))
+            print("Time per input token: {0:.3f} ms".format(
+                ms_per_input_token))
 
             print("============================")
 
@@ -588,8 +610,10 @@ def run_epoch(run_context, training):
     if not training:
         mean_validation_loss = total_validation_loss / total_validation_samples
         mean_validation_loss_summary = tf.Summary(
-            value=[tf.Summary.Value(tag="main_loss", simple_value=mean_validation_loss)]
-        )
+            value=[
+                tf.Summary.Value(
+                    tag="main_loss",
+                    simple_value=mean_validation_loss)])
         run_context.validation_writer.add_summary(
             mean_validation_loss_summary, global_step_value
         )
@@ -618,7 +642,8 @@ def run_epoch(run_context, training):
         # Log weight matrices only each epoch. It seems that logging them frequently often gives very large
         # events.out.tfevents.* files.
         if run_context.options.log_weight_images:
-            weight_images_summary = sess.run(run_context.weight_images_summary_op)
+            weight_images_summary = sess.run(
+                run_context.weight_images_summary_op)
             run_context.training_writer.add_summary(
                 weight_images_summary, global_step_value
             )
@@ -634,7 +659,8 @@ def run_decode(run_context):
 
     print("Decoding...")
 
-    for batch_index, raw_batch in enumerate(batcher.get_batches(shuffle_batches=False)):
+    for batch_index, raw_batch in enumerate(
+            batcher.get_batches(shuffle_batches=False)):
         documents, queries, document_ids, query_ids = raw_batch
 
         batch = process_batch(
@@ -722,12 +748,13 @@ def run_decode(run_context):
             hypotheses = []
 
             for hypothesis in best_hypotheses:
-                attended_token = batch.documents[0, hypothesis.attention_argmax[-1]]
+                attended_token = batch.documents[0,
+                                                 hypothesis.attention_argmax[-1]]
                 vocabulary_token = hypothesis.voc_argmax[-1]
                 last_pointer_enabled = hypothesis.pointer_enabled[-1]
                 last_output_index = (
-                    attended_token if last_pointer_enabled == 1 else vocabulary_token
-                )
+                    attended_token
+                    if last_pointer_enabled == 1 else vocabulary_token)
 
                 feed_dict = {
                     model.documents_placeholder: batch.documents,
@@ -737,13 +764,12 @@ def run_decode(run_context):
                     model.beam_width_placeholder: beam_width,
                     model.decode_last_output_placeholder: [last_output_index],
                     model.initial_decoder_state_placeholder: [
-                        hypothesis.next_decoder_state
-                    ],
+                        hypothesis.next_decoder_state],
                     model.pre_computed_encoder_states_placeholder: encoder_outputs,
                     model.pre_computed_query_state_placeholder: query_state,
                     model.query_attention_partial_score_placeholder: partial_query_score,
                     model.encoder_state_attention_partial_scores_placeholder: partial_encoder_score,
-                }
+                    }
 
                 (
                     top_k_voc_argmax,
@@ -766,7 +792,8 @@ def run_decode(run_context):
 
                 for j in range(beam_width):
                     new_prob = hypothesis.probability * top_k_probs[0, j]
-                    new_voc_argmax = hypothesis.voc_argmax + [top_k_voc_argmax[0, j]]
+                    new_voc_argmax = hypothesis.voc_argmax + \
+                        [top_k_voc_argmax[0, j]]
                     new_attention_argmax = hypothesis.attention_argmax + [
                         attention_argmax[0]
                     ]
@@ -793,9 +820,8 @@ def run_decode(run_context):
             best_hypotheses = []
 
             num_considered_hypotheses = 0
-            while (
-                num_finished_hypotheses < beam_width and added_to_next_beam < beam_width
-            ):
+            while (num_finished_hypotheses <
+                    beam_width and added_to_next_beam < beam_width):
 
                 hypothesis = hypotheses[num_considered_hypotheses]
 
@@ -806,7 +832,8 @@ def run_decode(run_context):
                 ):
                     num_finished_hypotheses += 1
                     finished_hypotheses_probs.append(hypothesis.probability)
-                    finished_hypotheses_voc_argmax.append(hypothesis.voc_argmax)
+                    finished_hypotheses_voc_argmax.append(
+                        hypothesis.voc_argmax)
                     finished_hypotheses_attention_argmax.append(
                         hypothesis.attention_argmax
                     )
@@ -867,8 +894,10 @@ def run_decode(run_context):
         if not path.isdir(output_prob_path):
             os.makedirs(output_prob_path)
         np.savetxt(
-            path.join(output_prob_path, document_query_id), [final_hypothesis_prob]
-        )
+            path.join(
+                output_prob_path,
+                document_query_id),
+            [final_hypothesis_prob])
 
 
 def process_batch(
@@ -890,7 +919,8 @@ def process_batch(
 
     # Limit document size by clipping
     max_document_tokens = 800
-    document_batch = [document[:max_document_tokens] for document in document_batch]
+    document_batch = [document[: max_document_tokens]
+                      for document in document_batch]
 
     # Add special <EOS> symbol to the end of every sentence in the batch
     for batch_texts in [query_batch, reference_batch]:
@@ -921,8 +951,8 @@ def process_batch(
     for texts in loop_elements:
         longest_text_length = max(len(text) for text in texts)
         padded = np.zeros(
-            [actual_batch_size, longest_text_length] + data_shape, dtype=np.int32
-        )
+            [actual_batch_size, longest_text_length] + data_shape,
+            dtype=np.int32)
         lengths = np.zeros([actual_batch_size], dtype=np.int32)
 
         for index, text in enumerate(texts):
@@ -937,8 +967,8 @@ def process_batch(
 
 
 def process_references(
-    document_batch, reference_batch, entities_batch, vocabulary, target_vocabulary_size
-):
+        document_batch, reference_batch, entities_batch, vocabulary,
+        target_vocabulary_size):
     # TODO: find out what this is
     batch_size = len(document_batch)
     batched_reference = [None] * batch_size
@@ -963,7 +993,8 @@ def process_references(
         for index, token in enumerate(document):
             document_index[token].append(index)
 
-        # Sort to find longest entities first (e.g. 'President of America' before 'America')
+        # Sort to find longest entities first (e.g. 'President of America'
+        # before 'America')
         entities.sort(key=len, reverse=True)
         pointed_reference_entity_indices = set()
         for entity_tokens in entities:
@@ -1006,7 +1037,8 @@ def process_references(
                     pointer_switch[index] = 1
                     pointer_reference[index] = occurrences[0]
                 else:
-                    # To avoid teaching the model to output <unk>, loss is masked for these time steps
+                    # To avoid teaching the model to output <unk>, loss is
+                    # masked for these time steps
                     vocabularized_reference[index] = pad_id
 
         batched_reference[batch_index] = vocabularized_reference
@@ -1035,15 +1067,13 @@ def write_output_summaries(
     if not path.isdir(summary_dir):
         os.makedirs(summary_dir)
 
-    output_summaries = list(
-        zip(
-            vocabularized_summaries,
-            batched_attention_indices,
-            batched_pointer_enabled,
-            document_ids,
-            query_ids,
-        )
-    )
+    output_summaries = list(zip(
+        vocabularized_summaries,
+        batched_attention_indices,
+        batched_pointer_enabled,
+        document_ids,
+        query_ids,
+    ))
 
     for (
         vocabularized_summary,
