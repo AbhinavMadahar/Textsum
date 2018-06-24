@@ -103,7 +103,6 @@ class ProcessedBatch:
 
 
 class Hypothesis:
-    # TODO: figure out what this is
     def __init__(
         self,
         probability,
@@ -113,7 +112,6 @@ class Hypothesis:
         attention_softmax,
         pointer_enabled,
     ):
-        # TODO: write documentation for args
         self.probability = probability
         self.voc_argmax = voc_argmax
         self.attention_argmax = attention_argmax
@@ -655,7 +653,6 @@ def run_epoch(run_context, training):
 
 
 def run_decode(run_context):
-    # TODO: find out what this is
     model = run_context.model
     sess = run_context.session
     batcher = run_context.decode_batcher
@@ -965,7 +962,6 @@ def process_batch(options, vocabulary, document_batch, query_batch, reference_ba
 
 
 def process_references(document_batch, reference_batch, entities_batch, vocabulary, target_vocabulary_size):
-    # TODO: find out what this is
     batch_size = len(document_batch)
     batched_reference = [None] * batch_size
     batched_pointer_reference = [None] * batch_size
