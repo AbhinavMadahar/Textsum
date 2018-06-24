@@ -8,8 +8,7 @@ python querysum.py \
     ../querysum-data/data/glove.6B.100d.txt \
     ../querysum-data/data/vocab \
     --mode train \
-    --logdir log \
     --training_dir ../querysum-data/data/output/validation \
     --validation_dir ../querysum-data/data/output/test \
     --batch_size 32 \
-    --logdir log;
+    --logdir ./logs;

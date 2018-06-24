@@ -72,7 +72,11 @@ class RunContext:
 
 
 class ProcessedBatch:
-    # TODO: figure out what this is
+    '''
+    A batch which is in the right format to be read by the model for training,
+    evaluating, or decoding. This class is used by the function
+    `process_batch`.
+    '''
     def __init__(
         self,
         documents,
@@ -86,7 +90,6 @@ class ProcessedBatch:
         pointer_switch=None,
         pointer_switch_lengths=None,
     ):
-        # TODO: write documentation for the args
         self.documents = documents
         self.document_lengths = document_lengths
         self.queries = queries
@@ -252,7 +255,7 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
         vocabulary,
         embeddings,
         options.target_vocabulary_size,
-        cell="lstm",
+        cell="gru",
     )
 
     training_batcher = None
@@ -330,10 +333,10 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
     config = tf.ConfigProto(allow_soft_placement=True)
     config.gpu_options.allow_growth = options.allow_gpu_growth
 
+    sv.managed_session(config=config).__enter__()
     with sv.managed_session(config=config) as sess:
         if len(sv.saver.last_checkpoints) > 0:
-            print("Restored from saved model '{}'".format(
-                      sv.saver.last_checkpoints[-1]))
+            print("Restored from saved model '{}'".format(sv.saver.last_checkpoints[-1]))
 
         training_writer = tf.summary.FileWriter(
             path.join(options.logdir, "training"))
@@ -390,6 +393,7 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
 
         finally:
             # Manually save after ctrl-c signal
+            print('Exiting')
             run_context.training_writer.flush()
             run_context.validation_writer.flush()
             if options.mode == "train":
@@ -398,12 +402,17 @@ def run(options, word_dict, word_embedding_dim, vocabulary):
                 print("Model saved as '{}'".format(
                     sv.saver.last_checkpoints[-1]))
 
-
 def run_epoch(run_context, training):
-    # TODO: find out what this is
-    batcher = (
-        run_context.training_batcher
-        if training else run_context.validation_batcher)
+    '''
+    Run the model for an epoch.
+
+    Args:
+      run_context: RunContext, the paramaters for the epoch.
+      training: bool, whether to train the model.
+    '''
+
+    batcher = \
+        run_context.training_batcher if training else run_context.validation_batcher
     model = run_context.model
     sess = run_context.session
 
@@ -425,8 +434,7 @@ def run_epoch(run_context, training):
             documents,
             queries,
             references,
-            entities,
-        )
+            entities)
         actual_batch_size = batch.documents.shape[0]
         document_length = batch.documents.shape[1]
 
@@ -449,13 +457,13 @@ def run_epoch(run_context, training):
                     trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
 
+            ops = [model.minimize_operation,
+                   model.final_train_loss,
+                   run_context.training_summary_op,
+                   model.global_step]
+
             _, loss_value, summary, global_step_value = sess.run(
-                [
-                    model.minimize_operation,
-                    model.final_train_loss,
-                    run_context.training_summary_op,
-                    model.global_step,
-                ],
+                ops,
                 feed_dict=feed_dict,
                 options=run_options,
                 run_metadata=run_metadata,
@@ -464,50 +472,47 @@ def run_epoch(run_context, training):
             run_context.training_writer.add_summary(summary, global_step_value)
 
             if run_context.collect_run_metadata:
-                run_context.training_writer.add_graph(
-                    sess.graph, global_step_value)
+                run_context.training_writer.add_graph(sess.graph, global_step_value)
+
                 run_context.training_writer.add_run_metadata(
                     run_metadata,
                     "train_{}".format(global_step_value),
                     global_step_value,
                 )
+
                 # Only collect metadata once
                 run_context.collect_run_metadata = False
+
         else:
             if run_context.options.mode == "train":
+                ops = [model.main_train_loss,
+                       model.train_vocabulary_argmax,
+                       model.train_attention_argmax,
+                       model.train_pointer_enabled,
+                       model.global_step]
                 (
                     loss_value,
                     vocabulary_argmax_value,
                     attention_argmax_values,
                     pointer_enabled_values,
                     global_step_value,
-                ) = sess.run(
-                    [
-                        model.main_train_loss,
-                        model.train_vocabulary_argmax,
-                        model.train_attention_argmax,
-                        model.train_pointer_enabled,
-                        model.global_step,
-                    ],
-                    feed_dict=feed_dict,
-                )
+                ) = sess.run(ops, feed_dict=feed_dict)
+
             else:
+                ops = [model.main_loss,
+                       model.vocabulary_argmax,
+                       model.attention_argmax,
+                       model.pointer_enabled,
+                       model.global_step]
+
                 (
                     loss_value,
                     vocabulary_argmax_value,
                     attention_argmax_values,
                     pointer_enabled_values,
                     global_step_value,
-                ) = sess.run(
-                    [
-                        model.main_loss,
-                        model.vocabulary_argmax,
-                        model.attention_argmax,
-                        model.pointer_enabled,
-                        model.global_step,
-                    ],
-                    feed_dict=feed_dict,
-                )
+                ) = sess.run(ops, feed_dict=feed_dict)
+
             total_validation_samples += actual_batch_size
             total_validation_loss += loss_value * actual_batch_size
 
@@ -900,27 +905,23 @@ def run_decode(run_context):
             [final_hypothesis_prob])
 
 
-def process_batch(
-    options,
-    vocabulary,
-    document_batch,
-    query_batch,
-    reference_batch=None,
-    entities_batch=None,
-):
+def process_batch(options, vocabulary, document_batch, query_batch, reference_batch=None, entities_batch=None):
     """
+    Put a batch into the format accepted by the model for training, evaluating,
+    or decoding.
+
     Args:
       options:
       vocabulary: an object implementing word_to_id: string -> (nonneg int).
       document_batch: 2D indexable of word strings, the batch of documents.
-      query_batch: 2D indexable of
+      query_batch: 2D indexable
+      reference_batch: can be None if not training or evaluating (i.e. decoding)
+      entities_batch: can be None if not training or evaluating (i.e. decoding)
     """
-    # TODO: find out what this is
 
     # Limit document size by clipping
     max_document_tokens = 800
-    document_batch = [document[: max_document_tokens]
-                      for document in document_batch]
+    document_batch = [document[:max_document_tokens] for document in document_batch]
 
     # Add special <EOS> symbol to the end of every sentence in the batch
     for batch_texts in [query_batch, reference_batch]:
@@ -936,24 +937,20 @@ def process_batch(
             reference_batch,
             entities_batch,
             vocabulary,
-            options.target_vocabulary_size,
-        )
-    actual_batch_size = len(document_batch)
+            options.target_vocabulary_size)
+    batch_size = len(document_batch)
     processed_batch_elements = []
 
-    loop_elements = (
-        (documents, queries, references, pointer_reference, pointer_switch)
-        if reference_batch
-        else (documents, queries)
-    )
+    loop_elements = (documents, queries, references, pointer_reference, pointer_switch) if reference_batch else (documents, queries)
 
-    data_shape = list(loop_elements[0].shape[1:])
-    for texts in loop_elements:
+    data_shape = list(documents.shape[1:])
+
+    for i, texts in enumerate(loop_elements):
         longest_text_length = max(len(text) for text in texts)
         padded = np.zeros(
-            [actual_batch_size, longest_text_length] + data_shape,
+            [batch_size, longest_text_length],
             dtype=np.int32)
-        lengths = np.zeros([actual_batch_size], dtype=np.int32)
+        lengths = np.zeros([batch_size], dtype=np.int32)
 
         for index, text in enumerate(texts):
             length = np.size(text, 0)
@@ -962,13 +959,12 @@ def process_batch(
 
         processed_batch_elements.append(padded)
         processed_batch_elements.append(lengths)
+
     batch = ProcessedBatch(*processed_batch_elements)
     return batch
 
 
-def process_references(
-        document_batch, reference_batch, entities_batch, vocabulary,
-        target_vocabulary_size):
+def process_references(document_batch, reference_batch, entities_batch, vocabulary, target_vocabulary_size):
     # TODO: find out what this is
     batch_size = len(document_batch)
     batched_reference = [None] * batch_size
@@ -978,13 +974,9 @@ def process_references(
     pad_id = vocabulary.word_to_id("<PAD>")
     unk_id = vocabulary.word_to_id("<UNK>")
 
-    for batch_index, (document, reference, entities) in enumerate(
-        zip(document_batch, reference_batch, entities_batch)
-    ):
+    for batch_index, (document, reference, entities) in enumerate(zip(document_batch, reference_batch, entities_batch)):
         reference_length = len(reference)
-        vocabularized_reference = vocabularize(
-            reference, vocabulary, target_vocabulary_size - 1
-        )
+        vocabularized_reference = vocabularize(reference, vocabulary, target_vocabulary_size - 1)
         pointer_reference = np.zeros([reference_length], dtype=np.int32)
         pointer_switch = np.zeros([reference_length], dtype=np.int32)
 
@@ -993,8 +985,7 @@ def process_references(
         for index, token in enumerate(document):
             document_index[token].append(index)
 
-        # Sort to find longest entities first (e.g. 'President of America'
-        # before 'America')
+        # Sort to find longest entities first (e.g. 'President of America' before 'America')
         entities.sort(key=len, reverse=True)
         pointed_reference_entity_indices = set()
         for entity_tokens in entities:
@@ -1004,12 +995,7 @@ def process_references(
                 ref_end_index = ref_start_index + len(entity_tokens)
 
                 # Make sure that entities in the reference don't overlap
-                if any(
-                    [
-                        index in pointed_reference_entity_indices
-                        for index in range(ref_start_index, ref_end_index)
-                    ]
-                ):
+                if any(index in pointed_reference_entity_indices for index in range(ref_start_index, ref_end_index)):
                     continue
 
                 if entity_tokens == reference[ref_start_index:ref_end_index]:
@@ -1130,7 +1116,7 @@ def vocabularize_batch(texts, vocabulary, max_id=np.inf):
       A 2D numpy array which contains the corresponding IDs for each word in
       each sentence in texts.
     """
-    return [vocabularize(text, vocabulary, max_id) for text in texts]
+    return np.array([vocabularize(text, vocabulary, max_id) for text in texts])
 
 
 def vocabularized_to_string(
