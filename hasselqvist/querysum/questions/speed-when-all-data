@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Author: Abhinav Madahar
+# Created: June 30, 2018
+# Project: Hasselqvist et al. Analysis
+# Question: how quickly does the model train when it has all the available
+#           data?
+# Notes: this uses the default configuration, forming a control.
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+../querysum.py \
+    ../../querysum-data/data/glove.6B.100d.txt \
+    ../../querysum-data/data/vocab \
+    --mode train \
+    --training_dir ../../querysum-data/data/output/validation \
+    --validation_dir ../../querysum-data/data/output/test \
+    --batch_size 32 \
+    --logdir logs/control;

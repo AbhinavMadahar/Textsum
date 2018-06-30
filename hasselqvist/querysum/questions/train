@@ -1,7 +1,5 @@
 #!/usr/bin/env sh
 
-. env/bin/activate;
-
 cat $0;
 
 python querysum.py \
@@ -11,4 +9,4 @@ python querysum.py \
     --training_dir ../querysum-data/data/output/validation \
     --validation_dir ../querysum-data/data/output/test \
     --batch_size 32 \
-    --logdir ./logs;
+    --logdir $log_dir;

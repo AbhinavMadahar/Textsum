@@ -1,6 +1,8 @@
 # Querysum
 
-Code for the model presented in the thesis *Query-Based Abstractive Summarization Using Neural Networks* by Johan Hasselqvist and Niklas Helmertz.
+Code for the model presented in the thesis *Query-Based Abstractive
+Summarization Using Neural Networks* by Johan Hasselqvist and
+Niklas Helmertz.
 
 ## Requirements
 
@@ -9,13 +11,19 @@ Code for the model presented in the thesis *Query-Based Abstractive Summarizatio
 
 ## Data
 
-Instructions for acquiring the dataset released along with this model can be found at a [separate repo](https://github.com/helmertz/querysum-data).
+Instructions for acquiring the dataset released along with this
+model can be found at a [separate
+repo](https://github.com/helmertz/querysum-data).
 
-Pre-trained embeddings can be downloaded at [https://nlp.stanford.edu/projects/glove](https://nlp.stanford.edu/projects/glove). For the thesis work, 100-dimensional embeddings trained on "Wikipedia 2014 + Gigaword 5" have been used.
+Pre-trained embeddings can be downloaded at
+[https://nlp.stanford.edu/projects/glove](https://nlp.stanford.edu/projects/glove).
+For the thesis work, 100-dimensional embeddings trained on
+"Wikipedia 2014 + Gigaword 5" have been used.
 
 ## Training
 
-Replacing the parts in angle brackets, the model can be trained by running:
+Replacing the parts in angle brackets, the model can be trained by
+running:
 
 ```
 python querysum.py \
@@ -47,4 +55,3 @@ python querysum.py \
     --decode_dir <path to dataset directory, containing documents and queries, to generate summaries for> \
     --decode_out_dir <path to directory where generated summaries are saved>
 ```
-

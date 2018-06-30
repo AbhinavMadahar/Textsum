@@ -93,7 +93,13 @@ class QuerySumModel:
 
         self.mode = mode
 
-        self.cell = LSTMCell if cell == 'lstm' else GRUCell
+        if cell == 'gru':
+            self.cell = GRUCell
+        elif cell == 'lstm':
+            self.cell = lambda *args, **kwargs: LSTMCell(*args, **kwargs, state_is_tuple=False)
+        else:
+            raise Exception('{} is not a valid RNN cell'.format(cell))
+
         self.output_keep_prob = 0.8  # DropoutWrapper keep probability
 
         self._build_graph(mode=mode)
@@ -119,6 +125,7 @@ class QuerySumModel:
         Args:
           self: QuerySumModel.
         '''
+
 
         with tf.variable_scope('query_encoder'):
             query_encoder_cell = self.cell(self.encoder_cell_state_size)
@@ -160,6 +167,7 @@ class QuerySumModel:
             # state so we can initialize the decoder's state to it.
             self.encoder_outputs = tf.concat([encoder_outputs_fw, encoder_outputs_bw], 2)
             self.final_encoder_state = self.encoder_outputs[:, -1, :]
+
 
     def _add_decoder(self, mode):
         '''
@@ -281,10 +289,9 @@ class QuerySumModel:
 
         '''
         loop_fn = self._custom_rnn_loop_fn(decoder_cell.output_size, training_wheels=training_wheels)
+
         decoder_outputs, _, (context_vectors_array, attention_logits_array, pointer_probability_array) = \
-            tf.nn.raw_rnn(decoder_cell,
-                          loop_fn,
-                          swap_memory=True)
+            tf.nn.raw_rnn(decoder_cell, loop_fn, swap_memory=True)
 
         decoder_outputs = decoder_outputs.stack()
         decoder_outputs = tf.transpose(decoder_outputs, [1, 0, 2])
@@ -302,6 +309,7 @@ class QuerySumModel:
 
     def _custom_rnn_loop_fn(self, cell_size, training_wheels):
         def loop_fn(time, cell_output, cell_state, loop_state):
+            print(cell_state)
             if cell_output is None:  # time == 0
                 context_vectors_array = tf.TensorArray(tf.float32, size=tf.shape(self.references_placeholder)[1] + 1)
                 attention_logits_array = tf.TensorArray(tf.float32, size=tf.shape(self.references_placeholder)[1] + 1)
@@ -328,6 +336,7 @@ class QuerySumModel:
                 else:
                     last_output_embedding = self._extract_argmax_and_embed(cell_output, cell_size,
                                                                            tf.shape(self.documents_placeholder)[0])
+
             context_vector, attention_logits = self._attention(next_cell_state, last_output_embedding)
             pointer_probabilities = self._pointer_probabilities(context_vector, next_cell_state, last_output_embedding)
 
@@ -367,8 +376,10 @@ class QuerySumModel:
 
         embedding_part = tf.matmul(prev_embedding, self.attention_w_e)
 
+        # XXX: this is where the shape mismatch is
         output = tf.matmul(prev_decoder_state,
                            self.attention_w) + embedding_part + query_part + encoder_part + self.attention_b
+
         output = tf.tanh(output)
         output = tf.reduce_sum(self.attention_v * output, axis=2)
         output = tf.transpose(output, [1, 0])
@@ -536,12 +547,12 @@ class QuerySumModel:
                 next_input = tf.zeros(shape=[self.batch_size,
                                              self.word_embedding_dim +
                                              self.encoder_output_size +
-                                             self.encoder_cell_state_size
-                                             ])
+                                             self.encoder_cell_state_size])
                 next_loop_state = loop_state
 
             elements_finished = cell_output is not None
 
+            print(next_cell_state.shape)
             emit_output = cell_output
             return elements_finished, next_input, next_cell_state, emit_output, next_loop_state
 
