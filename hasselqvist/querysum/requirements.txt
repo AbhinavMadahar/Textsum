@@ -1,0 +1,14 @@
+click==6.7
+Jinja2==2.10
+livereload==2.5.2
+Markdown==2.6.11
+MarkupSafe==1.0
+mkdocs==0.17.3
+numpy==1.14.3
+protobuf==3.5.2.post1
+pydoc-utils==1.0.1
+PyYAML==3.12
+six==1.11.0
+tensorflow==1.1.0
+tornado==4.5.3
+Werkzeug==0.14.1
